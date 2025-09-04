@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>KYC Sync Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>KYC Synchronization Test</h1>
+    
+    <div id="status"></div>
+    
+    <button onclick="testLogin()">1. Login as buyer@test.com</button>
+    <button onclick="checkSession()">2. Check Session</button>
+    <button onclick="checkKycStatus()">3. Check KYC Status</button>
+    <button onclick="forceSync()">4. Force Sync from Striga</button>
+    
+    <h2>Results:</h2>
+    <div id="results"></div>
+    
+    <script>
+        const baseUrl = 'http://localhost:3018';
+        let sessionData = null;
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.innerHTML = message;
+            document.getElementById('results').appendChild(div);
+        }
+        
+        async function testLogin() {
+            try {
+                addResult('Attempting login...', 'info');
+                
+                // Get CSRF token
+                const csrfRes = await fetch(`${baseUrl}/api/auth/csrf`, { credentials: 'include' });
+                const { csrfToken } = await csrfRes.json();
+                
+                // Login
+                const formData = new URLSearchParams();
+                formData.append('email', 'buyer@test.com');
+                formData.append('password', 'C@rlos2025');
+                formData.append('csrfToken', csrfToken);
+                formData.append('json', 'true');
+                
+                const loginRes = await fetch(`${baseUrl}/api/auth/callback/credentials`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData,
+                    credentials: 'include'
+                });
+                
+                if (loginRes.ok) {
+                    addResult('✅ Login successful!', 'success');
+                    await checkSession();
+                } else {
+                    addResult(`❌ Login failed: ${loginRes.status}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function checkSession() {
+            try {
+                const res = await fetch(`${baseUrl}/api/auth/session`, { credentials: 'include' });
+                sessionData = await res.json();
+                
+                if (sessionData.user) {
+                    addResult(`✅ Session active: ${sessionData.user.email}`, 'success');
+                    addResult(`<pre>${JSON.stringify(sessionData.user, null, 2)}</pre>`, 'info');
+                } else {
+                    addResult('❌ No active session', 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function checkKycStatus() {
+            try {
+                addResult('Fetching KYC status...', 'info');
+                
+                const res = await fetch(`${baseUrl}/api/kyc/status`, { credentials: 'include' });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    addResult('✅ KYC Status Response:', 'success');
+                    addResult(`<pre>${JSON.stringify(data, null, 2)}</pre>`, 'info');
+                    
+                    // Highlight key info
+                    addResult(`<strong>Stage:</strong> ${data.stage}`, 'info');
+                    addResult(`<strong>KYC Status:</strong> ${data.kycStatus}`, 'info');
+                    addResult(`<strong>Email Verified:</strong> ${data.emailVerified}`, 'info');
+                    addResult(`<strong>Phone Verified:</strong> ${data.phoneVerified}`, 'info');
+                    addResult(`<strong>Striga User ID:</strong> ${data.strigaUserId}`, 'info');
+                } else {
+                    addResult(`❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function forceSync() {
+            try {
+                if (!sessionData || !sessionData.user) {
+                    addResult('❌ Please login first', 'error');
+                    return;
+                }
+                
+                addResult('Forcing sync from Striga...', 'info');
+                
+                // Just call the status endpoint which will trigger sync
+                await checkKycStatus();
+                
+                addResult('✅ Sync triggered. Check the results above.', 'success');
+            } catch (error) {
+                addResult(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

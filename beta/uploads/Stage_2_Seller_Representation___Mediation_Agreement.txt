@@ -1,0 +1,44 @@
+sequenceDiagram
+    participant User
+    participant Platform
+    participant Database
+    participant InternalSignatureService
+    participant EmailService
+    participant STRIPE
+
+    User->>Platform: Accesses Platform (Assumed: Approved Status)
+    Platform-->>User: Display 'Seller Representation Authorization' Screen
+    User->>Platform: Choose Yes/No for Representation
+    Platform->>Database: Update Seller Representation (Status: Yes/No)
+
+    alt User Chooses Yes
+        Platform-->>User: Provides Document (Download / Option to Fill Online)
+        opt Online Signing
+            User->>InternalSignatureService: Signs Document Online (via Link)
+            InternalSignatureService-->>Platform: Signed Document Confirmation
+        end
+        opt Offline Signing & Upload
+            User->>Platform: Uploads Signed Document
+        end
+        Platform->>Database: Update Document Status (Complete)
+        Platform-->>User: Next Step Unlocked
+    else User Chooses No
+        Platform-->>User: Proceeds to Mediation Agreement Screen
+    end
+
+    Platform-->>User: Display 'Mediation Agreement' Screen
+    User->>Platform: Clicks to View Document
+    Platform-->>User: Displays Mediation Agreement Document
+    User->>Platform: Digitally Signs Document
+    Platform->>InternalSignatureService: Requests Digital Signature
+    InternalSignatureService-->>Platform: Signature Confirmation
+    Platform->>Database: Update Mediation Agreement Status (Status: Yes/Pending)
+    Platform->>EmailService: Send Copy of Signed Document
+    EmailService-->>User: Signed Document Copy
+
+    opt If Mediation Agreement is 'Yes' (Signed)
+        Platform-->>User: Requests Completion Fee Payment
+        User->>STRIPE: Initiates Payment for Fee Representation
+        STRIPE-->>Platform: Payment Confirmation
+        Platform->>Database: Update Fee Payment Status
+    end

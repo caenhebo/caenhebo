@@ -1,0 +1,49 @@
+sequenceDiagram
+    participant Buyer
+    participant Seller
+    participant Platform
+    participant Database
+    participant Notary
+
+    Note over Buyer,Seller: Contract Execution Process
+    Platform-->>Buyer: Request Contract Execution Signing
+    Platform-->>Seller: Request Contract Execution Signing
+
+    opt Power of Attorney (Optional)
+        Buyer->>Platform: Signs (if POA holder)
+        Seller->>Platform: Signs (if POA holder)
+        Platform->>Database: Update POA Status (Status: Yes/No/Pending)
+    end
+
+    Note over Buyer,Seller: Promissory Purchase & Sale Agreement
+    Platform->>Platform: Generates Promissory P&S Agreement (based on agreed terms)
+    Platform-->>Buyer: Request Buyer Finalize Information
+    Platform-->>Seller: Request Seller Finalize Information
+    Buyer->>Platform: Finalizes Information on Platform
+    Seller->>Platform: Finalizes Information on Platform
+    Platform-->>Buyer: Presents Promissory P&S Agreement for Review
+    Platform-->>Seller: Presents Promissory P&S Agreement for Review
+    Buyer->>Platform: Signs Promissory P&S Agreement
+    Seller->>Platform: Signs Promissory P&S Agreement
+    Platform->>Database: Update Promissory P&S (Buyer: Yes/No/Pending, Seller: Yes/No/Pending)
+
+    Note over Buyer,Platform: Payment Process Initiation
+    Platform-->>Buyer: Initiates Payment Process (based on choice in Stage 0/1)
+
+    alt Payment Method: Cash
+        Buyer->>Platform: Chooses Cash Payment
+        Platform-->>Buyer: Provides Cash Payment Details (where to send money)
+        Buyer->>Platform: Confirms Payment Sent (External Action)
+        Platform->>Database: Update Individual Payment Status
+        opt Once Payments Completed
+            Platform-->>Buyer: Request Final Purchase & Sale Agreement Signing
+            Platform-->>Seller: Request Final Purchase & Sale Agreement Signing
+            Buyer->>Platform: Signs Final Purchase & Sale Agreement
+            Seller->>Platform: Signs Final Purchase & Sale Agreement
+            Platform->>Notary: Submits Documents for Notary Deed Process
+            Notary-->>Platform: Notary Deed Completed Confirmation
+            Platform->>Database: Update Final P&S & Notary Status
+        end
+    else Payment Method: Crypto
+        Platform-->>Buyer: Redirect to Escrow STRIGA Phase (See separate diagram)
+    end

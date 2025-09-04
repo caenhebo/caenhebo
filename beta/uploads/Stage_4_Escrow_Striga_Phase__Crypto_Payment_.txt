@@ -1,0 +1,55 @@
+sequenceDiagram
+    participant Buyer
+    participant Seller
+    participant Platform
+    participant STRIGAAPI
+    participant Database
+    participant EmailService
+    participant Bank
+
+    Note over Platform,STRIGAAPI: Wallet Creation for Approved Users
+    Platform->>STRIGAAPI: Request Wallet Creation (for Buyer & Seller)
+    STRIGAAPI-->>Platform: Wallets Created (BTC, ETH, USDT)
+    Platform->>Database: Store Wallet Information
+    Platform-->>Buyer: Display Wallet Information (on UI)
+    Platform-->>Buyer: Provide Wallet Address (QR, Email, Copy)
+
+    Note over Buyer,STRIGAAPI: Test Transaction
+    Buyer->>STRIGAAPI: Sends Test Transaction (< 100 EUR/USD)
+    STRIGAAPI-->>Platform: Notifies Test Transaction Received
+    Platform->>Buyer: Confirms Test Transaction Received (on UI)
+
+    Note over Buyer,STRIGAAPI: Percentage Payment (e.g., 10%)
+    Platform-->>Buyer: Requests Percentage Payment (based on Promissory P&S)
+    Buyer->>STRIGAAPI: Sends Percentage Money to Buyer's Wallet
+    STRIGAAPI-->>Platform: Confirms Funds Received in Buyer's Wallet
+    Platform->>Buyer: Confirms Funds Received (on UI)
+    Platform-->>Buyer: Prompts to Confirm Transfer to Seller's Wallet (Yes/No)
+    Buyer->>Platform: Confirms Transfer (Yes)
+    Platform->>STRIGAAPI: Initiates Transfer from Buyer Wallet to Seller Wallet
+    STRIGAAPI-->>Platform: Notifies Funds Transferred
+    Platform->>Database: Update Payment Status (Percentage Transferred)
+    Platform-->>Seller: Confirms Funds Received in Seller's Wallet (on UI)
+
+    Note over Buyer,STRIGAAPI: Remaining Payment (after Final P&S & Notary Deed)
+    Platform-->>Buyer: Requests Remaining Payment (after P&S & Notary Deed)
+    Buyer->>STRIGAAPI: Sends Remaining Money to Buyer's Wallet
+    STRIGAAPI-->>Platform: Confirms Funds Received in Buyer's Wallet
+    Platform->>Buyer: Confirms Funds Received (on UI)
+    Platform-->>Buyer: Prompts to Confirm Transfer to Seller's Wallet (Yes/No)
+    Buyer->>Platform: Confirms Transfer (Yes)
+    Platform->>STRIGAAPI: Initiates Transfer from Buyer Wallet to Seller Wallet
+    STRIGAAPI-->>Platform: Notifies Funds Transferred
+    Platform->>Database: Update Payment Status (Remaining Transferred)
+    Platform-->>Seller: Confirms Funds Received in Seller's Wallet (on UI)
+
+    opt Finalization & Payout
+        Platform->>STRIGAAPI: Initiates Payout to Seller's Bank Account (from Seller's Wallet)
+        STRIGAAPI->>Bank: Transfers Funds to Seller's Bank Account
+        Bank-->>STRIGAAPI: Confirms Transfer
+        STRIGAAPI-->>Platform: Payout Confirmation
+        Platform->>Database: Update Payment Status (Payout Completed)
+        Platform-->>Buyer: Allows Tracking of Payout Process (via Escrow System UI)
+        Platform-->>Buyer: Displays Payment Report (Statistics, Supporting Docs)
+        Platform-->>Seller: Displays Payment Report (Statistics, Supporting Docs)
+    end

@@ -1,0 +1,52 @@
+sequenceDiagram
+    participant User
+    participant Platform
+    participant EmailService
+    participant Database
+    participant STRIPE
+    participant SUMSUB
+    participant STRIGAAPI
+
+    Note over User,Platform: Initial Registration & Verification
+    User->>Platform: Fills User & Password
+    Platform->>EmailService: Send Verification Email
+    EmailService-->>User: Verification Link
+    User->>Platform: Clicks Email Link (Verify)
+    Platform->>Database: Create User (Status: Created)
+
+    User->>Platform: Login with User & Password
+    Platform-->>User: Display Basic Information Form
+    User->>Platform: Fills Form & Accepts T&Cs (Company, Privacy, STRIGA)
+    Platform->>Database: Update User Status (Status: Pending)
+
+    Note over User,Platform: Payment Choice & Verification Fee
+    User->>Platform: Chooses Payment Method (Crypto/Fiat)
+    Platform->>STRIPE: Request Verification Fee Payment
+    STRIPE-->>User: Payment Interface
+    User->>STRIPE: Pays Verification Fee
+    STRIPE-->>Platform: Payment Confirmation
+
+    Note over User,Platform: KYC Process
+    Platform-->>User: Display KYC Screen
+    User->>Platform: Clicks to Proceed to KYC
+    Platform->>SUMSUB: Redirect to SUMSUB for KYC
+    SUMSUB-->>User: KYC Form (Fill Info, Upload Pic, ID/Passport)
+    User->>SUMSUB: Submits KYC Info & Documents
+    SUMSUB-->>Platform: KYC Submission Confirmation
+    Platform->>Database: Update User Status (Status: KYC Process)
+
+    alt Crypto Path (STRIGA)
+        SUMSUB-->>STRIGAAPI: Notify KYC Result
+        STRIGAAPI-->>Platform: KYC Approved/Non-Approved Notification
+    else Fiat Path (SUMSUB Direct)
+        SUMSUB-->>Platform: KYC Approved/Non-Approved Notification
+    end
+
+    Platform->>Database: Update User Status (Status: Approved/Non-Approved)
+
+    alt User Approved
+        Platform-->>User: Access Granted / Continue Journey
+    else User Non-Approved
+        Platform->>EmailService: Send Non-Approved Email
+        EmailService-->>User: "Cannot continue using services"
+    end

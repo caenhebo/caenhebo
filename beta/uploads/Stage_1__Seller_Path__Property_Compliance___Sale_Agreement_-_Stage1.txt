@@ -1,0 +1,42 @@
+sequenceDiagram
+    participant Seller
+    participant Platform
+    participant Database
+    participant EmailService
+    participant AdminTeam
+    participant Auditor
+
+    Seller->>Platform: Accesses Platform (Assumed: Approved & Stage 1 Complete)
+    Platform-->>Seller: Display 'Seller Property Compliance' Screen (3 Steps)
+
+    Note over Seller,Platform: Step 1: Compliance Declaration
+    Seller->>Platform: Uploads/Generates & Signs Compliance Declaration
+    Platform->>Database: Update Compliance Declaration (Status: Yes/Pending)
+    Platform->>EmailService: Notify Admin Team of Compliance Submission
+    EmailService-->>AdminTeam: New Compliance Declaration
+
+    Note over AdminTeam,Auditor: Step 2 (originally 3rd): Independent Audit
+    AdminTeam->>Auditor: Requests Independent Auditor Process
+    Auditor->>Platform: Uploads Independent Audit Report
+    Platform->>Database: Update Independent Audit Report (Status: Yes/Pending)
+    Platform->>EmailService: Send Interview Request (Seller & AdminTeam)
+    EmailService-->>Seller: Interview Calendar Link
+    EmailService-->>AdminTeam: Interview Notification
+
+    Note over Seller,AdminTeam: Step 3 (originally 2nd): Interview
+    Seller->>Platform: Schedules Interview
+    AdminTeam->>Seller: Conducts Interview Call
+    AdminTeam->>Platform: Updates Interview Status in Form
+    Platform->>Database: Update Team Interview (Status: Yes/Pending)
+
+    opt When All 3 Compliance Steps are 'Yes'
+        Platform->>EmailService: Send Property Approval Email
+        EmailService-->>Seller: "Approved to sell property on platform"
+    end
+
+    Platform-->>Seller: Display 'Seller Sale Agreement' Term Sheet
+    Seller->>Platform: Fills Information & Signs Agreement Online
+    Platform->>Database: Update Selling Terms (Status: Yes/Pending)
+    Platform->>EmailService: Send Signed Agreement Copy (Seller & AdminTeam)
+    EmailService-->>Seller: Copy of Signed Agreement
+    EmailService-->>AdminTeam: Notification of Signed Agreement

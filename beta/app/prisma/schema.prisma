@@ -1,0 +1,681 @@
+// Caenhebo Alpha - Real Estate Transaction Platform
+// Database Schema for Next.js + Prisma + PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum PaymentPreference {
+  CRYPTO
+  FIAT
+  HYBRID
+}
+
+enum KycStatus {
+  PENDING
+  INITIATED
+  PASSED
+  REJECTED
+  EXPIRED
+}
+
+enum ComplianceStatus {
+  PENDING
+  REJECTED
+  APPROVED
+}
+
+enum TransactionStatus {
+  OFFER
+  NEGOTIATION
+  AGREEMENT
+  ESCROW
+  CLOSING
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum DocumentType {
+  ENERGY_CERTIFICATE
+  MUNICIPAL_LICENSE
+  PREDIAL_REGISTRATION
+  CADERNETA_PREDIAL_URBANA
+  COMPLIANCE_DECLARATION
+  REPRESENTATION_DOCUMENT
+  MEDIATION_AGREEMENT
+  PURCHASE_AGREEMENT
+  PAYMENT_PROOF
+  NOTARIZED_DOCUMENT
+  // Property Documents
+  TITLE_DEED
+  CERTIFICATE
+  PHOTO
+  FLOOR_PLAN
+  OTHER
+  USAGE_LICENSE
+  LAND_REGISTRY
+  TAX_REGISTER
+  OWNER_AUTHORIZATION
+  // Transaction Documents
+  CONTRACT
+  PROOF_OF_PAYMENT
+  LEGAL_DOCUMENT
+}
+
+// Main User model
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  emailVerified DateTime?
+  role      UserRole @default(BUYER)
+  
+  // Personal Information
+  firstName String
+  lastName  String
+  phone     String?
+  phoneNumber String?
+  phoneVerified Boolean @default(false)
+  dateOfBirth DateTime?
+  
+  // Address
+  addressLine1 String?
+  city         String?
+  state        String?
+  postalCode   String?
+  country      String?
+  
+  // Preferences
+  paymentPreference PaymentPreference @default(FIAT)
+  
+  // Striga Integration
+  strigaUserId     String? @unique
+  kycStatus        KycStatus @default(PENDING)
+  kycSessionId     String?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  profile           Profile?
+  buyerTransactions Transaction[] @relation("BuyerTransactions")
+  sellerTransactions Transaction[] @relation("SellerTransactions")
+  sellerProperties  Property[] @relation("SellerProperties")
+  documents         Document[]
+  wallets           Wallet[]
+  notifications     Notification[]
+  digitalIbans      DigitalIban[]
+  propertyInterests PropertyInterest[]
+  propertyAudits    PropertyAudit[] @relation("AdminAudits")
+  bankAccount       BankAccount?
+  documentAccessGranted DocumentAccess[] @relation("BuyerDocumentAccess")
+  documentAccessGiven   DocumentAccess[] @relation("GrantorDocumentAccess")
+  
+  @@map("users")
+}
+
+// Extended user profile
+model Profile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Additional profile fields
+  bio          String?
+  avatar       String?
+  companyName  String?
+  taxId        String?
+  
+  // Extended address fields
+  dateOfBirth  DateTime?
+  address      String?
+  addressLine2 String?
+  city         String?
+  postalCode   String?
+  country      String?
+  
+  // Legal agreements acceptance
+  termsAcceptedAt     DateTime?
+  privacyAcceptedAt   DateTime?
+  amlAcceptedAt       DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("profiles")
+}
+
+// Property model
+model Property {
+  id          String @id @default(cuid())
+  code        String @unique // Property search code
+  title       String
+  description String?
+  
+  // Location
+  address     String
+  city        String
+  state       String?
+  postalCode  String
+  country     String @default("Portugal")
+  
+  // Details
+  price       Decimal
+  area        Float?
+  bedrooms    Int?
+  bathrooms   Int?
+  
+  // Seller
+  sellerId    String
+  
+  // Compliance
+  complianceStatus ComplianceStatus @default(PENDING)
+  complianceNotes  String?
+  valuationPrice   Decimal?
+  
+  // Interview tracking
+  interviewDate    DateTime?
+  interviewStatus  String @default("NOT_SCHEDULED") // NOT_SCHEDULED, SCHEDULED, COMPLETED
+  interviewNotes   String?
+  
+  // Final approval
+  finalApprovalStatus String @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  seller       User @relation("SellerProperties", fields: [sellerId], references: [id])
+  transactions Transaction[]
+  documents    Document[]
+  interests    PropertyInterest[]
+  interviews   Interview[]
+  audits       PropertyAudit[]
+  documentAccess DocumentAccess[]
+  
+  @@map("properties")
+}
+
+// Property interest tracking
+model PropertyInterest {
+  id         String @id @default(cuid())
+  propertyId String
+  buyerId    String
+  
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  buyer      User     @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  
+  // Interest details
+  interestedAt DateTime @default(now())
+  message      String?
+  
+  @@unique([propertyId, buyerId])
+  @@map("property_interests")
+}
+
+// Main transaction model
+model Transaction {
+  id String @id @default(cuid())
+  
+  // Parties
+  buyerId  String
+  sellerId String
+  buyer    User @relation("BuyerTransactions", fields: [buyerId], references: [id])
+  seller   User @relation("SellerTransactions", fields: [sellerId], references: [id])
+  
+  // Property
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id])
+  
+  // Transaction details
+  status           TransactionStatus @default(OFFER)
+  offerPrice       Decimal
+  agreedPrice      Decimal?
+  initialPayment   Decimal?
+  paymentMethod    PaymentPreference @default(FIAT) // FIAT, CRYPTO, or HYBRID
+  cryptoPercentage Int? // 0-100 for hybrid payments
+  fiatPercentage   Int? // 0-100 for hybrid payments
+  
+  // Offer details
+  offerMessage     String?
+  offerTerms       String?
+  
+  // Timeline
+  proposalDate     DateTime?
+  acceptanceDate   DateTime?
+  escrowDate       DateTime?
+  completionDate   DateTime?
+  deadlineDate     DateTime?
+  
+  // Representation
+  buyerHasRep      Boolean @default(false)
+  sellerHasRep     Boolean @default(false)
+  
+  // Agreements
+  mediationSigned  Boolean @default(false)
+  purchaseAgreementSigned Boolean @default(false)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  payments        Payment[]
+  documents       Document[]
+  escrowSteps     EscrowStep[]
+  counterOffers   CounterOffer[]
+  statusHistory   TransactionStatusHistory[]
+  escrowDetails   EscrowDetails?
+  
+  @@map("transactions")
+}
+
+// Payment tracking
+model Payment {
+  id            String @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  // Payment details
+  type          PaymentPreference
+  amount        Decimal
+  currency      String
+  status        PaymentStatus @default(PENDING)
+  
+  // Payment method specific data
+  walletAddress String?
+  txHash        String?
+  bankDetails   String?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("payments")
+}
+
+// Multi-step escrow tracking
+model EscrowStep {
+  id            String @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  // Step details
+  stepNumber    Int
+  description   String
+  status        PaymentStatus @default(PENDING)
+  amount        Decimal?
+  currency      String?
+  
+  // Admin approval
+  adminApproved Boolean @default(false)
+  adminNotes    String?
+  approvedBy    String?
+  approvedAt    DateTime?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([transactionId, stepNumber])
+  @@map("escrow_steps")
+}
+
+// Document management
+model Document {
+  id     String @id @default(cuid())
+  userId String?
+  user   User?  @relation(fields: [userId], references: [id])
+  
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id])
+  
+  // Document details
+  documentType DocumentType @map("type")
+  filename    String
+  originalName String?
+  fileUrl     String @map("url")
+  mimeType    String
+  fileSize    Int @map("size")
+  
+  // Metadata
+  title       String?
+  description String?
+  verified    Boolean @default(false)
+  uploadedAt  DateTime @default(now())
+  
+  // Digital signature
+  signed      Boolean @default(false)
+  signedAt    DateTime?
+  signedBy    String?
+  signature   String?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("documents")
+}
+
+// Striga wallet integration
+model Wallet {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Wallet details
+  strigaWalletId String @unique
+  currency       String
+  address        String?
+  qrCode         String?
+  
+  // Balance tracking
+  balance        Decimal @default(0)
+  lastSyncAt     DateTime?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([userId, currency])
+  @@map("wallets")
+}
+
+// Digital IBAN for sellers
+model DigitalIban {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // IBAN details
+  iban           String @unique
+  bankName       String?
+  accountNumber  String?
+  
+  // Status
+  active         Boolean @default(true)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("digital_ibans")
+}
+
+// Document access permissions
+model DocumentAccess {
+  id         String   @id @default(cuid())
+  propertyId String
+  buyerId    String
+  grantedBy  String   // Seller who granted access
+  
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  buyer      User     @relation("BuyerDocumentAccess", fields: [buyerId], references: [id], onDelete: Cascade)
+  grantor    User     @relation("GrantorDocumentAccess", fields: [grantedBy], references: [id], onDelete: Cascade)
+  
+  // Access details
+  grantedAt  DateTime @default(now())
+  expiresAt  DateTime? // Optional expiration date
+  revoked    Boolean  @default(false)
+  revokedAt  DateTime?
+  
+  // Optional message from seller
+  message    String?
+  
+  @@unique([propertyId, buyerId])
+  @@map("document_access")
+}
+
+// User's personal bank account (different from Striga IBAN)
+model BankAccount {
+  id       String @id @default(cuid())
+  userId   String @unique
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Bank account details
+  accountHolderName String
+  bankName          String
+  iban              String
+  swiftCode         String?
+  bankAddress       String?
+  
+  // Additional details
+  currency          String @default("EUR")
+  accountType       String? // e.g., "Checking", "Savings"
+  
+  // Status
+  verified          Boolean @default(false)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("bank_accounts")
+}
+
+// Notification Types
+enum NotificationType {
+  NEW_OFFER
+  OFFER_ACCEPTED
+  OFFER_REJECTED
+  COUNTER_OFFER
+  PROPERTY_APPROVED
+  PROPERTY_REJECTED
+  PROPERTY_INTEREST
+  DOCUMENT_UPLOADED
+  TRANSACTION_STATUS_CHANGE
+  KYC_STATUS_CHANGE
+  INTERVIEW_SCHEDULED
+}
+
+// Enhanced Notification system
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Notification details
+  type        NotificationType
+  title       String
+  message     String
+  data        Json? // Additional data for the notification (property info, transaction info, etc.)
+  
+  // Status
+  read        Boolean @default(false)
+  readAt      DateTime?
+  
+  // Optional references
+  transactionId String?
+  propertyId    String?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("notifications")
+}
+
+// Webhook events for debugging
+model WebhookEvent {
+  id String @id @default(cuid())
+  
+  // Event details
+  eventType String
+  source    String // 'striga', 'stripe', etc.
+  eventId   String? // External event ID for idempotency
+  
+  // Payload
+  payload   Json
+  
+  // Processing
+  processed Boolean @default(false)
+  processedAt DateTime?
+  error     String?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  
+  @@unique([source, eventId])
+  @@map("webhook_events")
+}
+
+// Interview scheduling for property compliance
+model Interview {
+  id         String @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  
+  // Interview details
+  scheduledAt DateTime
+  duration    Int @default(60) // minutes
+  notes       String?
+  
+  // Status
+  completed   Boolean @default(false)
+  approved    Boolean @default(false)
+  
+  // Admin details
+  conductedBy String?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("interviews")
+}
+
+// Legal document templates
+model LegalTemplate {
+  id String @id @default(cuid())
+  
+  // Template details
+  name        String
+  type        DocumentType
+  content     String // Template content with placeholders
+  version     String @default("1.0")
+  
+  // Status
+  active      Boolean @default(true)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("legal_templates")
+}
+
+// Counter offer tracking for negotiations
+model CounterOffer {
+  id            String @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  // Offer details
+  price         Decimal
+  message       String?
+  terms         String?
+  
+  // Offered by
+  fromBuyer     Boolean // true if from buyer, false if from seller
+  
+  // Status
+  accepted      Boolean @default(false)
+  rejected      Boolean @default(false)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  
+  @@map("counter_offers")
+}
+
+// Transaction status history tracking
+model TransactionStatusHistory {
+  id            String @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  // Status change
+  fromStatus    TransactionStatus?
+  toStatus      TransactionStatus
+  
+  // Change details
+  changedBy     String? // User ID who made the change
+  notes         String?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  
+  @@map("transaction_status_history")
+}
+
+// Enhanced escrow details
+model EscrowDetails {
+  id            String @id @default(cuid())
+  transactionId String @unique
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  // Escrow account details
+  escrowAccountId String?
+  escrowProvider  String?
+  
+  // Amount details
+  totalAmount     Decimal
+  initialDeposit  Decimal?
+  finalPayment    Decimal?
+  
+  // Release conditions
+  releaseConditions String?
+  
+  // Status
+  fundsReceived   Boolean @default(false)
+  fundsReleased   Boolean @default(false)
+  
+  // Timestamps
+  fundingDate     DateTime?
+  releaseDate     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("escrow_details")
+}
+
+// Property audit tracking
+model PropertyAudit {
+  id         String @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  
+  // Audit details
+  adminId    String
+  admin      User @relation("AdminAudits", fields: [adminId], references: [id])
+  notes      String
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  
+  @@map("property_audits")
+}

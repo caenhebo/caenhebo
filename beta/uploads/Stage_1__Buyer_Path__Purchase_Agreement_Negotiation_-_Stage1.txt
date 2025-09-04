@@ -1,0 +1,28 @@
+sequenceDiagram
+    participant Buyer
+    participant Seller
+    participant Platform
+    participant Database
+    participant EmailService
+
+    Buyer->>Platform: Accesses Platform (Assumed: Mediation Agreement Signed & Property Chosen)
+    Platform-->>Buyer: Display 'Buyer's Purchase Agreement' Term Sheet
+
+    Note over Buyer,Seller: Negotiation Process
+    Buyer->>Platform: Initiates Negotiation on Purchase Terms
+    Platform->>Seller: Notifies Seller of Negotiation Request
+    loop Negotiation
+        Buyer<->>Platform: Proposes Terms
+        Platform<->>Seller: Counter-Proposes Terms
+    end
+
+    opt When Both Parties Agree on Terms
+        Platform-->>Buyer: Requests Online Signature for Purchase Agreement
+        Platform-->>Seller: Requests Online Signature for Purchase Agreement
+        Buyer->>Platform: Signs Purchase Agreement Online
+        Seller->>Platform: Signs Purchase Agreement Online
+        Platform->>Database: Update Purchase Agreement (Status: Signed)
+        Platform->>EmailService: Send Agreement Signed Notification
+        EmailService-->>Buyer: Agreement Signed
+        EmailService-->>Seller: Agreement Signed
+    end
