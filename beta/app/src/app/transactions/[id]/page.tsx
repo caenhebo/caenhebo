@@ -5,8 +5,9 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/header'
 import DocumentManager from '@/components/documents/document-manager'
-import Stage3Simple from '@/components/transactions/stage3-simple'
 import PromissoryAgreement from '@/components/transactions/promissory-agreement'
+import RepresentationMediation from '@/components/transactions/representation-mediation'
+import { Kyc2Verification } from '@/components/transactions/kyc2-verification'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -60,6 +61,12 @@ interface Transaction {
   purchaseAgreementSigned: boolean
   buyerSignedPromissory?: boolean
   sellerSignedPromissory?: boolean
+  buyerSignedMediation?: boolean
+  sellerSignedMediation?: boolean
+  buyerKyc2Verified?: boolean
+  sellerKyc2Verified?: boolean
+  kyc2StartedAt?: string
+  fundProtectionDate?: string
   paymentMethod: 'FIAT' | 'CRYPTO' | 'HYBRID'
   cryptoPercentage?: number
   fiatPercentage?: number
@@ -350,7 +357,8 @@ export default function TransactionDetailPage({ params }: PageProps) {
   }
 
   const canAdvance = () => {
-    const advanceable = ['AGREEMENT', 'ESCROW', 'CLOSING']
+    // Don't show advance button during AGREEMENT stage - Stage3Simple handles progression
+    const advanceable = ['ESCROW', 'CLOSING']
     return transaction && advanceable.includes(transaction.status)
   }
 
@@ -618,29 +626,278 @@ export default function TransactionDetailPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            {/* Promissory Purchase & Sale Agreement - Must be signed first */}
-            {transaction.status === 'AGREEMENT' && !transaction.purchaseAgreementSigned && (
-              <PromissoryAgreement
-                transactionId={transaction.id}
-                userRole={transaction.userRole}
-                buyerSigned={transaction.statusHistory?.some(h => h.notes?.includes('Buyer signed the Promissory')) || false}
-                sellerSigned={transaction.statusHistory?.some(h => h.notes?.includes('Seller signed the Promissory')) || false}
-                agreedPrice={transaction.agreedPrice || transaction.offerPrice}
-                propertyTitle={transaction.property.title}
-                propertyCode={transaction.property.code}
-                onComplete={() => fetchTransaction()}
-              />
+            {/* STAGE 3: AGREEMENT - Show everything in one clear flow */}
+            {transaction.status === 'AGREEMENT' && (
+              <Card className="border-4 border-blue-500 shadow-2xl bg-gradient-to-b from-blue-50 to-white">
+                <CardHeader className="bg-blue-600 text-white">
+                  <CardTitle className="text-2xl flex items-center">
+                    <Shield className="mr-3 h-8 w-8" />
+                    Stage 3: Legal Documentation & Agreements
+                  </CardTitle>
+                  <p className="text-blue-100 mt-2">
+                    Complete all steps below in order to proceed with the transaction
+                  </p>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  {/* Step 1: Promissory Agreement */}
+                  <div className={`border-2 rounded-lg p-4 ${
+                    transaction.buyerSignedPromissory && transaction.sellerSignedPromissory
+                      ? 'border-green-400 bg-green-50'
+                      : 'border-orange-400 bg-orange-50'
+                  }`}>
+                    <div className="flex items-start">
+                      <div className="mr-4 mt-1">
+                        {transaction.buyerSignedPromissory && transaction.sellerSignedPromissory ? (
+                          <CheckCircle className="h-6 w-6 text-green-600" />
+                        ) : (
+                          <div className="h-6 w-6 rounded-full border-2 border-orange-400 bg-white flex items-center justify-center text-orange-600 font-bold">
+                            1
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold mb-2">
+                          Step 1: Sign Promissory Purchase & Sale Agreement
+                        </h3>
+                        {!(transaction.buyerSignedPromissory && transaction.sellerSignedPromissory) ? (
+                          <PromissoryAgreement
+                            transactionId={transaction.id}
+                            userRole={transaction.userRole}
+                            buyerSigned={transaction.buyerSignedPromissory || false}
+                            sellerSigned={transaction.sellerSignedPromissory || false}
+                            agreedPrice={transaction.agreedPrice || transaction.offerPrice}
+                            propertyTitle={transaction.property.title}
+                            propertyCode={transaction.property.code}
+                            onComplete={() => fetchTransaction()}
+                          />
+                        ) : (
+                          <div className="text-green-700 font-medium">
+                            ✅ Both parties have signed the agreement
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 2: Representation and Mediation Agreement */}
+                  {transaction.buyerSignedPromissory && transaction.sellerSignedPromissory ? (
+                    <div className={`border-2 rounded-lg p-4 ${
+                      transaction.buyerSignedMediation && transaction.sellerSignedMediation
+                        ? 'border-green-400 bg-green-50'
+                        : 'border-orange-400 bg-orange-50'
+                    }`}>
+                      <div className="flex items-start">
+                        <div className="mr-4 mt-1">
+                          {transaction.buyerSignedMediation && transaction.sellerSignedMediation ? (
+                            <CheckCircle className="h-6 w-6 text-green-600" />
+                          ) : (
+                            <div className="h-6 w-6 rounded-full border-2 border-orange-400 bg-white flex items-center justify-center text-orange-600 font-bold">
+                              2
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold mb-2">
+                            Step 2: Representation Document & Mediation Agreement
+                          </h3>
+                          {!(transaction.buyerSignedMediation && transaction.sellerSignedMediation) ? (
+                            <RepresentationMediation
+                              transactionId={transaction.id}
+                              userRole={transaction.userRole}
+                              buyerSigned={transaction.buyerSignedMediation || false}
+                              sellerSigned={transaction.sellerSignedMediation || false}
+                              onComplete={() => fetchTransaction()}
+                            />
+                          ) : (
+                            <div className="text-green-700 font-medium">
+                              ✅ Both parties have signed the mediation agreement
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-gray-300 rounded-lg p-4 bg-gray-50 opacity-60">
+                      <div className="flex items-start">
+                        <div className="mr-4 mt-1">
+                          <div className="h-6 w-6 rounded-full border-2 border-gray-300 bg-white flex items-center justify-center text-gray-400 font-bold">
+                            2
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold mb-2 text-gray-600">
+                            Step 2: Representation Document & Mediation Agreement
+                          </h3>
+                          <p className="text-gray-500">
+                            This step will be available after both parties sign the Promissory Agreement
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 3: KYC Tier 2 Verification */}
+                  {transaction.buyerSignedMediation && transaction.sellerSignedMediation ? (
+                    <div className={`border-2 rounded-lg p-4 ${
+                      transaction.buyerKyc2Verified && transaction.sellerKyc2Verified
+                        ? 'border-green-400 bg-green-50'
+                        : 'border-purple-400 bg-purple-50'
+                    }`}>
+                      <div className="flex items-start">
+                        <div className="mr-4 mt-1">
+                          {transaction.buyerKyc2Verified && transaction.sellerKyc2Verified ? (
+                            <CheckCircle className="h-6 w-6 text-green-600" />
+                          ) : (
+                            <div className="h-6 w-6 rounded-full border-2 border-purple-400 bg-white flex items-center justify-center text-purple-600 font-bold">
+                              3
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold mb-2">
+                            Step 3: Complete KYC Tier 2 Verification
+                          </h3>
+                          {!(transaction.buyerKyc2Verified && transaction.sellerKyc2Verified) ? (
+                            <div className="space-y-4">
+                              <Kyc2Verification
+                                transactionId={transaction.id}
+                                role={transaction.userRole}
+                                onComplete={() => fetchTransaction()}
+                              />
+                              <div className="grid grid-cols-2 gap-4 mt-4">
+                                <div className="p-3 rounded-lg border bg-card">
+                                  <div className="text-sm font-medium mb-1">Buyer KYC2</div>
+                                  <Badge variant={transaction.buyerKyc2Verified ? "success" : "secondary"}>
+                                    {transaction.buyerKyc2Verified ? "Verified" : "Pending"}
+                                  </Badge>
+                                </div>
+                                <div className="p-3 rounded-lg border bg-card">
+                                  <div className="text-sm font-medium mb-1">Seller KYC2</div>
+                                  <Badge variant={transaction.sellerKyc2Verified ? "success" : "secondary"}>
+                                    {transaction.sellerKyc2Verified ? "Verified" : "Pending"}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-green-700 font-medium">
+                              ✅ Both parties have completed KYC Tier 2 verification
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-gray-300 rounded-lg p-4 bg-gray-50 opacity-60">
+                      <div className="flex items-start">
+                        <div className="mr-4 mt-1">
+                          <div className="h-6 w-6 rounded-full border-2 border-gray-300 bg-white flex items-center justify-center text-gray-400 font-bold">
+                            3
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold mb-2 text-gray-600">
+                            Step 3: Complete KYC Tier 2 Verification
+                          </h3>
+                          <p className="text-gray-500">
+                            This step will be available after both parties sign the Mediation Agreement
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
-            {/* Stage 3: Representation & Mediation Panel - Only after promissory is signed */}
-            {transaction.status === 'AGREEMENT' && transaction.purchaseAgreementSigned && (
-              <Stage3Simple
-                transactionId={transaction.id}
-                userRole={transaction.buyerId === session.user.id ? 'buyer' : 
-                         transaction.sellerId === session.user.id ? 'seller' : 'admin'}
-                userId={session.user.id}
-                onStageComplete={handleAdvanceStage}
-              />
+            {/* STAGE 4: KYC2 VERIFICATION - Enhanced verification for fund protection */}
+            {transaction.status === 'KYC2_VERIFICATION' && (
+              <Card className="border-4 border-purple-500 shadow-2xl bg-gradient-to-b from-purple-50 to-white">
+                <CardHeader className="bg-purple-600 text-white">
+                  <CardTitle className="text-2xl flex items-center">
+                    <Shield className="mr-3 h-8 w-8" />
+                    Stage 4: KYC Tier 2 Verification
+                  </CardTitle>
+                  <p className="text-purple-100 mt-2">
+                    Enhanced verification is required before funds can be protected
+                  </p>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <Kyc2Verification
+                    transactionId={transaction.id}
+                    role={transaction.userRole}
+                    onComplete={handleAdvanceStage}
+                  />
+
+                  {/* Show status of both parties */}
+                  <div className="mt-6 grid grid-cols-2 gap-4">
+                    <div className="p-3 rounded-lg border bg-card">
+                      <div className="text-sm font-medium mb-1">Buyer Verification</div>
+                      <Badge variant={transaction.buyerKyc2Verified ? "success" : "secondary"}>
+                        {transaction.buyerKyc2Verified ? "Verified" : "Pending"}
+                      </Badge>
+                    </div>
+                    <div className="p-3 rounded-lg border bg-card">
+                      <div className="text-sm font-medium mb-1">Seller Verification</div>
+                      <Badge variant={transaction.sellerKyc2Verified ? "success" : "secondary"}>
+                        {transaction.sellerKyc2Verified ? "Verified" : "Pending"}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Show advance button when both are verified */}
+                  {transaction.buyerKyc2Verified && transaction.sellerKyc2Verified && (
+                    <div className="mt-6">
+                      <Button
+                        onClick={handleAdvanceStage}
+                        className="w-full"
+                        size="lg"
+                      >
+                        <ArrowRight className="mr-2 h-5 w-5" />
+                        Continue to Fund Protection
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* STAGE 5: FUND PROTECTION (formerly Escrow) */}
+            {transaction.status === 'FUND_PROTECTION' && (
+              <Card className="border-4 border-green-500 shadow-2xl bg-gradient-to-b from-green-50 to-white">
+                <CardHeader className="bg-green-600 text-white">
+                  <CardTitle className="text-2xl flex items-center">
+                    <Shield className="mr-3 h-8 w-8" />
+                    Stage 5: Fund Protection
+                  </CardTitle>
+                  <p className="text-green-100 mt-2">
+                    Funds are now protected and the transaction is being processed
+                  </p>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <Alert>
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <AlertDescription>
+                      Both parties have completed KYC Tier 2 verification. The funds are now under protection.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="mt-6 space-y-4">
+                    <div className="p-4 rounded-lg border bg-card">
+                      <div className="text-sm font-medium mb-2">Protected Amount</div>
+                      <div className="text-2xl font-bold text-green-600">
+                        {formatPrice(transaction.agreedPrice || transaction.offerPrice)}
+                      </div>
+                    </div>
+
+                    {transaction.fundProtectionDate && (
+                      <div className="text-sm text-muted-foreground">
+                        Fund protection started on {formatDate(transaction.fundProtectionDate)}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Offer Details */}

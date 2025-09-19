@@ -58,16 +58,16 @@ interface Property {
 }
 
 const DOCUMENT_CATEGORIES = [
-  { value: 'COMPLIANCE_DECLARATION', label: '📋 Compliance Declaration Form', required: true },
-  { value: 'ENERGY_CERTIFICATE', label: '🏡 Energy Efficiency Certificate', required: true, description: 'Issued by a qualified technician authorized by ADENE' },
-  { value: 'MUNICIPAL_LICENSE', label: '📜 Usage License (Habitation License)', required: true, description: 'Issued by the Municipal Council' },
-  { value: 'PREDIAL_REGISTRATION', label: '🏛 Permanent Land Registry Certificate', required: true, description: 'Issued by the IRN' },
-  { value: 'CADERNETA_PREDIAL_URBANA', label: '📄 Urban Property Tax Register', required: true, description: 'Issued by the Tax Authority' },
-  { value: 'OWNER_AUTHORIZATION', label: '✍️ Owner Authorization Form', required: true, description: 'Written authorization from the property owner to list and sell the property' },
-  { value: 'TITLE_DEED', label: '📑 Title Deed', required: false },
-  { value: 'FLOOR_PLAN', label: '📐 Floor Plans', required: false },
-  { value: 'PHOTO', label: '📷 Property Photos', required: false },
-  { value: 'OTHER', label: '📎 Other Documents', required: false }
+  { value: 'COMPLIANCE_DECLARATION', label: '📋 Compliance Declaration Form (Declaração de Conformidade)', required: true },
+  { value: 'ENERGY_CERTIFICATE', label: '🏡 Energy Efficiency Certificate (Certificado Energético)', required: true, description: 'Issued by a qualified technician authorized by ADENE' },
+  { value: 'MUNICIPAL_LICENSE', label: '📜 Usage License (Licença de Habitação)', required: true, description: 'Issued by the Municipal Council' },
+  { value: 'PREDIAL_REGISTRATION', label: '🏛 Permanent Land Registry Certificate (Certidão Permanente do Registo Predial)', required: true, description: 'Issued by the IRN' },
+  { value: 'CADERNETA_PREDIAL_URBANA', label: '📄 Urban Property Tax Register (Caderneta Predial Urbana)', required: true, description: 'Issued by the Tax Authority' },
+  { value: 'OWNER_AUTHORIZATION', label: '✍️ Owner Authorization Form (Autorização do Proprietário)', required: true, description: 'Written authorization from the property owner to list and sell the property' },
+  { value: 'TITLE_DEED', label: '📑 Title Deed (Escritura)', required: false },
+  { value: 'FLOOR_PLAN', label: '📐 Floor Plans (Plantas)', required: false },
+  { value: 'PHOTO', label: '📷 Property Photos (Fotografias do Imóvel)', required: false },
+  { value: 'OTHER', label: '📎 Other Documents (Outros Documentos)', required: false }
 ]
 
 const ALLOWED_FILE_TYPES = {
@@ -448,41 +448,74 @@ export default function PropertyDocumentsPage() {
           </Alert>
         )}
 
-        {/* Owner Authorization Form Template */}
+        {/* Legal Forms Templates */}
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center">
               <Shield className="mr-2 h-5 w-5" />
-              Need the Owner Authorization Form?
+              Legal Forms to Download
             </CardTitle>
             <CardDescription>
-              Download our template to get written authorization from the property owner
+              Download our templates for required property documentation
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">
-                  This form is required to legally list and sell the property on our platform.
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  The form must be signed by the property owner and uploaded as a PDF.
-                </p>
+            <div className="space-y-4">
+              {/* Owner Authorization Form */}
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div>
+                  <p className="font-medium text-sm">✍️ Owner Authorization Form</p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Required authorization from the property owner to list and sell the property
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Must be signed by the property owner and uploaded as a PDF
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const link = document.createElement('a')
+                    link.href = '/api/templates/owner-authorization'
+                    link.download = 'owner-authorization-form.txt'
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const link = document.createElement('a')
-                  link.href = '/api/templates/owner-authorization'
-                  link.download = 'owner-authorization-form.txt'
-                  document.body.appendChild(link)
-                  link.click()
-                  document.body.removeChild(link)
-                }}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Download Template
-              </Button>
+
+              {/* Compliance Declaration Form */}
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div>
+                  <p className="font-medium text-sm">📋 Compliance Declaration Form</p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Declaration of property compliance with all legal and structural requirements
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Must be completed truthfully, signed, and uploaded as a PDF
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const link = document.createElement('a')
+                    link.href = '/api/templates/compliance-declaration'
+                    link.download = 'compliance-declaration-form.txt'
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

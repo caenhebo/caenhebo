@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 interface Params {
   params: Promise<{
@@ -94,8 +92,6 @@ export async function GET(request: NextRequest, { params }: Params) {
       { error: 'Failed to check Stage 3 status' },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -237,7 +233,5 @@ export async function POST(request: NextRequest, { params }: Params) {
       { error: 'Failed to update Stage 3' },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

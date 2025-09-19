@@ -64,24 +64,22 @@ export async function POST(
       )
     }
 
-    // For now, we'll track signatures in the status history and set purchaseAgreementSigned
-    // when both parties have signed (we'll check the history)
-    
-    // Check if the other party has already signed by looking at status history
-    const existingSignatures = await prisma.transactionStatusHistory.findMany({
-      where: {
-        transactionId: transactionId,
-        notes: {
-          contains: 'signed the Promissory Purchase & Sale Agreement'
-        }
-      }
+    // Update the appropriate signature field
+    const updateData: any = {}
+    if (role === 'buyer') {
+      updateData.buyerSignedPromissory = true
+      updateData.buyerSignedPromissoryAt = new Date()
+    } else if (role === 'seller') {
+      updateData.sellerSignedPromissory = true
+      updateData.sellerSignedPromissoryAt = new Date()
+    }
+
+    // Update the transaction with the signature
+    const updatedTransaction = await prisma.transaction.update({
+      where: { id: transactionId },
+      data: updateData
     })
-    
-    const otherPartyRole = isBuyer ? 'Seller' : 'Buyer'
-    const otherPartySigned = existingSignatures.some(h => 
-      h.notes?.includes(`${otherPartyRole} signed`)
-    )
-    
+
     // Create status history entry for this signature
     await prisma.transactionStatusHistory.create({
       data: {
@@ -92,11 +90,13 @@ export async function POST(
         notes: `${role === 'buyer' ? 'Buyer' : 'Seller'} signed the Promissory Purchase & Sale Agreement`
       }
     })
-    
-    // If both parties have now signed, update purchaseAgreementSigned
-    let updatedTransaction
-    if (otherPartySigned) {
-      updatedTransaction = await prisma.transaction.update({
+
+    // Check if both parties have now signed
+    const bothSigned = updatedTransaction.buyerSignedPromissory && updatedTransaction.sellerSignedPromissory
+
+    // If both parties have signed, update purchaseAgreementSigned
+    if (bothSigned && !updatedTransaction.purchaseAgreementSigned) {
+      await prisma.transaction.update({
         where: { id: transactionId },
         data: {
           purchaseAgreementSigned: true
@@ -115,24 +115,10 @@ export async function POST(
       })
 
       // TODO: Send notification emails to both parties
-    } else {
-      updatedTransaction = await prisma.transaction.findUnique({
-        where: { id: transactionId }
-      })
     }
-    
-    // Check current signature status from history
-    const allSignatures = await prisma.transactionStatusHistory.findMany({
-      where: {
-        transactionId: transactionId,
-        notes: {
-          contains: 'signed the Promissory Purchase & Sale Agreement'
-        }
-      }
-    })
-    
-    const buyerSigned = allSignatures.some(h => h.notes?.includes('Buyer signed'))
-    const sellerSigned = allSignatures.some(h => h.notes?.includes('Seller signed'))
+
+    const buyerSigned = updatedTransaction.buyerSignedPromissory || false
+    const sellerSigned = updatedTransaction.sellerSignedPromissory || false
 
     return NextResponse.json({
       success: true,
@@ -148,7 +134,5 @@ export async function POST(
       { error: 'Failed to sign agreement' },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

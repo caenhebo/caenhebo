@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Create notification for the seller
-    const buyerName = interest.buyer.firstName && interest.buyer.lastName 
+    const buyerName = interest.buyer.firstName && interest.buyer.lastName
       ? `${interest.buyer.firstName} ${interest.buyer.lastName}`
       : interest.buyer.email
 
@@ -128,9 +128,8 @@ export async function POST(request: NextRequest) {
         type: 'PROPERTY_INTEREST',
         title: 'New Interest in Your Property',
         message: `${buyerName} has expressed interest in your property "${interest.property.title}" (${interest.property.code})`,
-        relatedEntityType: 'PROPERTY',
-        relatedEntityId: propertyId,
-        metadata: {
+        propertyId: propertyId, // Use propertyId instead of relatedEntityId
+        data: {
           propertyId: propertyId,
           propertyTitle: interest.property.title,
           propertyCode: interest.property.code,

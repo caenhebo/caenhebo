@@ -5,13 +5,25 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
-import { 
+import { Input } from '@/components/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   FileText,
   Download,
   CheckCircle,
   Loader2,
   AlertCircle,
-  Signature
+  Signature,
+  Upload,
+  FileCheck,
+  X
 } from 'lucide-react'
 
 interface PromissoryAgreementProps {
@@ -23,6 +35,14 @@ interface PromissoryAgreementProps {
   propertyTitle: string
   propertyCode: string
   onComplete?: () => void
+}
+
+const formatPrice = (price: number | string) => {
+  const numPrice = typeof price === 'string' ? parseFloat(price) : price
+  return new Intl.NumberFormat('en-EU', {
+    style: 'currency',
+    currency: 'EUR'
+  }).format(numPrice)
 }
 
 export default function PromissoryAgreement({ 
@@ -39,10 +59,47 @@ export default function PromissoryAgreement({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [agreed, setAgreed] = useState(false)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [transitioning, setTransitioning] = useState(false)
 
-  const hasSigned = userRole === 'buyer' ? buyerSigned : sellerSigned
-  const otherPartySigned = userRole === 'buyer' ? sellerSigned : buyerSigned
-  const bothSigned = buyerSigned && sellerSigned
+  // Local state for tracking signatures
+  const [localBuyerSigned, setLocalBuyerSigned] = useState(buyerSigned)
+  const [localSellerSigned, setLocalSellerSigned] = useState(sellerSigned)
+
+  const hasSigned = userRole === 'buyer' ? localBuyerSigned : localSellerSigned
+  const otherPartySigned = userRole === 'buyer' ? localSellerSigned : localBuyerSigned
+  const bothSigned = localBuyerSigned && localSellerSigned
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.includes('pdf') && !file.type.includes('image')) {
+      setError('Please upload a PDF or image file of the signed agreement')
+      return
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size must be less than 10MB')
+      return
+    }
+
+    setUploadedFile(file)
+    setError(null)
+    setSuccess(`✅ Uploaded: ${file.name}`)
+  }
+
+  const handleRemoveFile = () => {
+    setUploadedFile(null)
+    setSuccess(null)
+    // Reset file input
+    const fileInput = document.getElementById('agreement-upload') as HTMLInputElement
+    if (fileInput) fileInput.value = ''
+  }
 
   const handleDownloadAgreement = async () => {
     try {
@@ -68,12 +125,23 @@ export default function PromissoryAgreement({
     }
   }
 
-  const handleSignAgreement = async () => {
+  const handleSignClick = () => {
     if (!agreed) {
       setError('You must read and agree to the terms first')
       return
     }
 
+    if (!uploadedFile) {
+      setError('Please upload the signed agreement PDF first')
+      return
+    }
+
+    // Show confirmation dialog
+    setShowConfirmDialog(true)
+  }
+
+  const handleSignAgreement = async () => {
+    setShowConfirmDialog(false)
     setLoading(true)
     setError(null)
     setSuccess(null)
@@ -94,15 +162,29 @@ export default function PromissoryAgreement({
         throw new Error(data.error || 'Failed to sign agreement')
       }
 
-      setSuccess('✅ You have successfully signed the Promissory Purchase & Sale Agreement!')
-      
+      const data = await response.json()
+
+      // Update the signature states based on API response
+      if (data.buyerSigned) setLocalBuyerSigned(true)
+      if (data.sellerSigned) setLocalSellerSigned(true)
+
       // Check if both parties have now signed
-      if (otherPartySigned) {
-        setSuccess('🎉 Both parties have signed! You can now proceed to the next stage.')
+      if (data.bothSigned) {
+        setSuccess('🎉 Both parties have signed! Moving to the next stage...')
+        setTransitioning(true)
+
+        // Trigger completion callback with shorter delay
         if (onComplete) {
-          setTimeout(() => onComplete(), 2000)
+          setTimeout(() => {
+            onComplete()
+          }, 500) // Reduced from 2000ms to 500ms
         }
+      } else {
+        setSuccess('✅ You have successfully signed! Waiting for the other party to sign...')
       }
+
+      // Clear the agreement checkbox to prevent re-signing
+      setAgreed(false)
     } catch (err) {
       console.error('Error signing agreement:', err)
       setError(err instanceof Error ? err.message : 'Failed to sign agreement')
@@ -146,7 +228,8 @@ export default function PromissoryAgreement({
   }
 
   return (
-    <Card className="border-2 border-blue-400">
+    <>
+    <Card className={`border-2 border-blue-400 ${transitioning ? 'opacity-75' : ''}`}>
       <CardHeader className="bg-blue-50">
         <CardTitle className="text-xl flex items-center">
           <FileText className="mr-3 h-6 w-6 text-blue-600" />
@@ -156,8 +239,16 @@ export default function PromissoryAgreement({
           Legal agreement confirming the terms of sale for {propertyTitle}
         </CardDescription>
       </CardHeader>
-      
-      <CardContent className="pt-6">
+
+      <CardContent className="pt-6 relative">
+        {/* Transitioning overlay */}
+        {transitioning && (
+          <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center rounded-lg">
+            <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
+            <p className="text-lg font-semibold text-gray-800">Moving to next stage...</p>
+            <p className="text-sm text-gray-600 mt-2">Please wait a moment</p>
+          </div>
+        )}
         {error && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
@@ -200,26 +291,95 @@ export default function PromissoryAgreement({
             </div>
           </div>
 
-          {/* Download Agreement */}
-          <div className="text-center">
-            <Button 
-              variant="outline" 
+          {/* Step 1: Download Agreement */}
+          <div className="mb-6 border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
+            <h4 className="font-semibold mb-3 flex items-center">
+              <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-2">
+                1
+              </span>
+              Download Agreement Template
+            </h4>
+            <Button
+              variant="outline"
               size="lg"
-              onClick={handleDownloadAgreement}
               className="w-full"
+              onClick={handleDownloadAgreement}
             >
               <Download className="mr-2 h-5 w-5" />
               Download Agreement to Review
             </Button>
             <p className="text-sm text-gray-600 mt-2">
-              Please download and carefully review the agreement before signing
+              Download, print, sign it physically or digitally, then upload the signed version
             </p>
           </div>
 
-          {/* Sign Agreement Section */}
-          {!hasSigned && (
-            <div className="border-t pt-6">
-              <h3 className="font-semibold mb-4">Sign the Agreement</h3>
+          {/* Step 2: Upload Signed Agreement */}
+          <div className="mb-6 border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
+            <h4 className="font-semibold mb-3 flex items-center">
+              <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-2">
+                2
+              </span>
+              Upload Your Signed Agreement
+            </h4>
+
+            {uploadedFile ? (
+              <div className="flex items-center justify-between p-3 bg-green-100 rounded-lg">
+                <div className="flex items-center">
+                  <FileCheck className="h-5 w-5 text-green-600 mr-2" />
+                  <span className="text-sm font-medium text-green-800">
+                    {uploadedFile.name}
+                  </span>
+                  <span className="text-xs text-green-600 ml-2">
+                    ({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleRemoveFile}
+                  className="text-red-600 hover:text-red-800"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <Input
+                  id="agreement-upload"
+                  type="file"
+                  accept=".pdf,image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <label htmlFor="agreement-upload">
+                  <Button
+                    variant="outline"
+                    className="w-full cursor-pointer"
+                    size="lg"
+                    asChild
+                  >
+                    <span>
+                      <Upload className="mr-2 h-5 w-5" />
+                      Select Signed Agreement (PDF or Image)
+                    </span>
+                  </Button>
+                </label>
+                <p className="text-sm text-gray-600 mt-2">
+                  Upload the agreement after you have signed it
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Step 3: Sign Agreement - Hide during loading to prevent double-clicking */}
+          {!hasSigned && !loading && (
+            <div className="border-2 border-green-200 rounded-lg p-4 bg-green-50">
+              <h4 className="font-semibold mb-3 flex items-center">
+                <span className="bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-2">
+                  3
+                </span>
+                Confirm and Sign the Agreement
+              </h4>
               
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
                 <div className="flex items-start">
@@ -246,11 +406,11 @@ export default function PromissoryAgreement({
                 </label>
               </div>
 
-              <Button 
+              <Button
                 size="lg"
                 className="w-full"
-                onClick={handleSignAgreement}
-                disabled={loading || !agreed}
+                onClick={handleSignClick}
+                disabled={loading || !agreed || !uploadedFile}
               >
                 {loading ? (
                   <>
@@ -267,13 +427,28 @@ export default function PromissoryAgreement({
             </div>
           )}
 
-          {/* Waiting for Other Party */}
-          {hasSigned && !otherPartySigned && (
-            <div className="text-center">
+          {/* Loading state while processing signature */}
+          {loading && (
+            <div className="text-center py-8">
               <div className="inline-flex items-center px-6 py-3 bg-blue-100 rounded-lg">
-                <CheckCircle className="h-5 w-5 text-blue-600 mr-2" />
+                <Loader2 className="h-5 w-5 text-blue-600 mr-2 animate-spin" />
                 <span className="text-blue-800">
-                  You have signed. Waiting for {userRole === 'buyer' ? 'seller' : 'buyer'} to sign...
+                  Processing your signature...
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">
+                Please wait, do not refresh the page
+              </p>
+            </div>
+          )}
+
+          {/* Waiting for Other Party */}
+          {hasSigned && !otherPartySigned && !loading && (
+            <div className="text-center">
+              <div className="inline-flex items-center px-6 py-3 bg-green-100 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                <span className="text-green-800">
+                  ✅ You have signed. Waiting for {userRole === 'buyer' ? 'seller' : 'buyer'} to sign...
                 </span>
               </div>
             </div>
@@ -281,5 +456,60 @@ export default function PromissoryAgreement({
         </div>
       </CardContent>
     </Card>
+
+    {/* Confirmation Dialog */}
+    <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center">
+            <AlertCircle className="h-5 w-5 text-orange-500 mr-2" />
+            Confirm Digital Signature
+          </DialogTitle>
+          <DialogDescription className="space-y-3 pt-4">
+            <p>You are about to digitally sign the following document:</p>
+
+            <div className="bg-gray-50 rounded-lg p-3 border">
+              <div className="flex items-center">
+                <FileText className="h-5 w-5 text-gray-600 mr-2" />
+                <div>
+                  <p className="font-medium text-gray-900">{uploadedFile?.name}</p>
+                  <p className="text-xs text-gray-500">
+                    Size: {uploadedFile && (uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-sm text-yellow-800">
+                <strong>⚠️ Legal Notice:</strong> By clicking "Confirm and Sign", you are
+                electronically signing this agreement, which is legally binding.
+              </p>
+            </div>
+
+            <p className="text-sm">
+              Property: <strong>{propertyTitle}</strong><br />
+              Agreement Price: <strong>{formatPrice(agreedPrice)}</strong>
+            </p>
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowConfirmDialog(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSignAgreement}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Signature className="mr-2 h-4 w-4" />
+            Confirm and Sign
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

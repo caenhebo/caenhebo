@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         propertyId: propertyId,
         buyerId: session.user.id,
         status: {
-          in: ['OFFER', 'NEGOTIATION', 'AGREEMENT', 'ESCROW', 'CLOSING']
+          in: ['OFFER', 'NEGOTIATION', 'AGREEMENT', 'KYC2_VERIFICATION', 'FUND_PROTECTION', 'CLOSING']
         }
       }
     })
@@ -238,6 +238,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   } finally {
-    await prisma.$disconnect()
   }
 }

@@ -101,6 +101,24 @@ export async function GET(request: NextRequest) {
           },
           counterOffers: {
             orderBy: { createdAt: 'desc' }
+          },
+          documents: {
+            select: {
+              id: true,
+              documentType: true,
+              filename: true,
+              originalName: true,
+              fileUrl: true,
+              uploadedAt: true,
+              user: {
+                select: {
+                  email: true,
+                  firstName: true,
+                  lastName: true
+                }
+              }
+            },
+            orderBy: { uploadedAt: 'desc' }
           }
         },
         orderBy: { createdAt: 'desc' },
@@ -179,7 +197,19 @@ export async function GET(request: NextRequest) {
         
         // Counts
         statusChangeCount: transaction.statusHistory.length,
-        counterOfferCount: transaction.counterOffers.length
+        counterOfferCount: transaction.counterOffers.length,
+
+        // Documents with uploader info
+        documents: transaction.documents.map(doc => ({
+          id: doc.id,
+          type: doc.documentType,
+          filename: doc.filename,
+          originalName: doc.originalName,
+          url: doc.fileUrl,
+          uploadedAt: doc.uploadedAt,
+          uploadedBy: doc.user ? `${doc.user.firstName || ''} ${doc.user.lastName || ''} (${doc.user.email})`.trim() : 'Unknown'
+        })),
+        documentCount: transaction.documents.length
       }
     })
 

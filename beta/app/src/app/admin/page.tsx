@@ -14,6 +14,7 @@ import UserManagement from '@/components/admin/user-management'
 import { WalletMonitor } from '@/components/admin/wallet-monitor'
 import TransactionManagement from '@/components/admin/transaction-management'
 import TasksManagement from '@/components/admin/tasks-management'
+import AdvancedDocuments from '@/components/admin/advanced-documents'
 
 function AdminDashboardContent() {
   const { data: session, status } = useSession()
@@ -67,7 +68,7 @@ function AdminDashboardContent() {
         </div>
 
         <Tabs defaultValue={searchParams.get('tab') || "overview"} className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="properties">Properties</TabsTrigger>
             <TabsTrigger value="striga">Striga API</TabsTrigger>
@@ -75,6 +76,7 @@ function AdminDashboardContent() {
             <TabsTrigger value="wallets">Wallets</TabsTrigger>
             <TabsTrigger value="transactions">Transactions</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
+            <TabsTrigger value="advanced">Advanced</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -103,6 +105,10 @@ function AdminDashboardContent() {
 
           <TabsContent value="tasks">
             <TasksManagement />
+          </TabsContent>
+
+          <TabsContent value="advanced">
+            <AdvancedDocuments />
           </TabsContent>
         </Tabs>
       </div>

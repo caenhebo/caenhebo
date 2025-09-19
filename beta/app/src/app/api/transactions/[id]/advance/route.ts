@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 // Define valid stage progressions
 const STAGE_PROGRESSIONS: { [key: string]: string } = {
   'OFFER': 'NEGOTIATION',
   'NEGOTIATION': 'AGREEMENT',
-  'AGREEMENT': 'ESCROW',
-  'ESCROW': 'CLOSING',
+  'AGREEMENT': 'KYC2_VERIFICATION',
+  'KYC2_VERIFICATION': 'FUND_PROTECTION',
+  'FUND_PROTECTION': 'CLOSING',
   'CLOSING': 'COMPLETED'
 }
 
@@ -49,9 +48,12 @@ export async function POST(
       )
     }
 
-    // Check if user is involved in the transaction
-    if (transaction.buyerId !== session.user.id && 
-        transaction.sellerId !== session.user.id) {
+    // Check if user is involved in the transaction or is admin
+    const isAdmin = session.user.role === 'ADMIN'
+    const isBuyer = transaction.buyerId === session.user.id
+    const isSeller = transaction.sellerId === session.user.id
+
+    if (!isBuyer && !isSeller && !isAdmin) {
       return NextResponse.json(
         { error: 'You are not authorized to advance this transaction' },
         { status: 403 }
@@ -76,54 +78,49 @@ export async function POST(
       )
     }
 
-    if (nextStatus === 'ESCROW') {
-      // Check Stage 3 requirements
-      const transactionWithDocs = await prisma.transaction.findUnique({
+    if (nextStatus === 'KYC2_VERIFICATION') {
+      // Check promissory signatures first (Step 1)
+      if (!transaction.buyerSignedPromissory || !transaction.sellerSignedPromissory) {
+        return NextResponse.json(
+          { error: 'Both buyer and seller must sign the Promissory Purchase & Sale Agreement to advance to KYC Tier 2 Verification' },
+          { status: 400 }
+        )
+      }
+
+      // Check mediation agreement signatures (Step 2)
+      if (!transaction.buyerSignedMediation || !transaction.sellerSignedMediation) {
+        return NextResponse.json(
+          { error: 'Both buyer and seller must sign the Mediation Agreement to advance to KYC Tier 2 Verification' },
+          { status: 400 }
+        )
+      }
+    }
+
+    if (nextStatus === 'FUND_PROTECTION') {
+      // Check that both parties have completed KYC Tier 2
+      const transactionWithKyc = await prisma.transaction.findUnique({
         where: { id: transactionId },
         include: {
-          documents: {
-            where: {
-              documentType: {
-                in: ['REPRESENTATION_DOCUMENT', 'MEDIATION_AGREEMENT']
-              }
-            }
-          }
+          buyer: true,
+          seller: true
         }
       })
 
-      const hasRepDoc = transactionWithDocs!.documents.some(
-        doc => doc.documentType === 'REPRESENTATION_DOCUMENT'
-      )
-      const hasMedAgreement = transactionWithDocs!.documents.some(
-        doc => doc.documentType === 'MEDIATION_AGREEMENT'
-      )
-
-      if (!hasRepDoc || !hasMedAgreement) {
+      if (!transactionWithKyc!.buyerKyc2Verified || !transactionWithKyc!.sellerKyc2Verified) {
         return NextResponse.json(
-          { error: 'Both representation document and mediation agreement are required to advance to Escrow' },
+          { error: 'Both buyer and seller must complete KYC Tier 2 verification to advance to Fund Protection' },
           { status: 400 }
         )
       }
 
-      if (!transactionWithDocs!.buyerHasRep || !transactionWithDocs!.sellerHasRep) {
-        return NextResponse.json(
-          { error: 'Both buyer and seller must confirm representation to advance to Escrow' },
-          { status: 400 }
-        )
-      }
-
-      if (!transactionWithDocs!.mediationSigned) {
-        return NextResponse.json(
-          { error: 'Mediation agreement must be signed to advance to Escrow' },
-          { status: 400 }
-        )
-      }
-
-      if (!escrowDetails || !escrowDetails.totalAmount) {
-        return NextResponse.json(
-          { error: 'Escrow details with total amount are required to advance to Escrow' },
-          { status: 400 }
-        )
+      // Escrow/Fund Protection details can be provided or use transaction agreed price
+      if (!escrowDetails) {
+        escrowDetails = {
+          totalAmount: transaction.agreedPrice || transaction.offerPrice,
+          escrowProvider: 'Caenhebo Fund Protection Service'
+        }
+      } else if (!escrowDetails.totalAmount) {
+        escrowDetails.totalAmount = transaction.agreedPrice || transaction.offerPrice
       }
     }
 
@@ -134,7 +131,8 @@ export async function POST(
         where: { id: transactionId },
         data: {
           status: nextStatus as any,
-          ...(nextStatus === 'ESCROW' && { escrowDate: new Date() }),
+          ...(nextStatus === 'KYC2_VERIFICATION' && { kyc2StartedAt: new Date() }),
+          ...(nextStatus === 'FUND_PROTECTION' && { fundProtectionDate: new Date() }),
           ...(nextStatus === 'COMPLETED' && { completionDate: new Date() })
         },
         include: {
@@ -220,7 +218,5 @@ export async function POST(
       { error: 'Failed to advance transaction' },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

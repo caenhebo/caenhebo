@@ -28,6 +28,9 @@ model User {
   strigaUserId          String?            @unique
   kycStatus             KycStatus          @default(PENDING)
   kycSessionId          String?
+  kyc2Status            KycStatus          @default(PENDING)
+  kyc2SessionId         String?
+  kyc2CompletedAt       DateTime?
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   bankAccount           BankAccount?
@@ -119,47 +122,54 @@ model PropertyInterest {
 }
 
 model Transaction {
-  id                      String                     @id @default(cuid())
-  buyerId                 String
-  sellerId                String
-  propertyId              String
-  status                  TransactionStatus          @default(OFFER)
-  offerPrice              Decimal
-  agreedPrice             Decimal?
-  initialPayment          Decimal?
-  paymentMethod           PaymentPreference          @default(FIAT)
-  cryptoPercentage        Int?
-  fiatPercentage          Int?
-  offerMessage            String?
-  offerTerms              String?
-  proposalDate            DateTime?
-  acceptanceDate          DateTime?
-  escrowDate              DateTime?
-  completionDate          DateTime?
-  deadlineDate            DateTime?
-  buyerHasRep             Boolean                    @default(false)
-  sellerHasRep            Boolean                    @default(false)
-  mediationSigned         Boolean                    @default(false)
-  purchaseAgreementSigned Boolean                    @default(false)
-  
-  // Promissory agreement tracking
-  buyerSignedPromissory    Boolean?                  @default(false)
-  buyerSignedPromissoryAt  DateTime?
-  sellerSignedPromissory   Boolean?                  @default(false)
-  sellerSignedPromissoryAt DateTime?
+  id                        String                     @id @default(cuid())
+  buyerId                   String
+  sellerId                  String
+  propertyId                String
+  status                    TransactionStatus          @default(OFFER)
+  offerPrice                Decimal
+  agreedPrice               Decimal?
+  initialPayment            Decimal?
+  paymentMethod             PaymentPreference          @default(FIAT)
+  cryptoPercentage          Int?
+  fiatPercentage            Int?
+  offerMessage              String?
+  offerTerms                String?
+  proposalDate              DateTime?
+  acceptanceDate            DateTime?
+  escrowDate                DateTime?
+  completionDate            DateTime?
+  deadlineDate              DateTime?
+  buyerHasRep               Boolean                    @default(false)
+  sellerHasRep              Boolean                    @default(false)
+  mediationSigned           Boolean                    @default(false)
+  purchaseAgreementSigned   Boolean                    @default(false)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  buyerSignedPromissory     Boolean?                   @default(false)
+  buyerSignedPromissoryAt   DateTime?
   purchaseAgreementSignedAt DateTime?
-  
-  createdAt               DateTime                   @default(now())
-  updatedAt               DateTime                   @updatedAt
-  counterOffers           CounterOffer[]
-  documents               Document[]
-  escrowDetails           EscrowDetails?
-  escrowSteps             EscrowStep[]
-  payments                Payment[]
-  statusHistory           TransactionStatusHistory[]
-  buyer                   User                       @relation("BuyerTransactions", fields: [buyerId], references: [id])
-  property                Property                   @relation(fields: [propertyId], references: [id])
-  seller                  User                       @relation("SellerTransactions", fields: [sellerId], references: [id])
+  sellerSignedPromissory    Boolean?                   @default(false)
+  sellerSignedPromissoryAt  DateTime?
+  buyerSignedMediation      Boolean?                   @default(false)
+  buyerSignedMediationAt    DateTime?
+  sellerSignedMediation     Boolean?                   @default(false)
+  sellerSignedMediationAt   DateTime?
+  buyerKyc2Verified         Boolean                    @default(false)
+  buyerKyc2VerifiedAt       DateTime?
+  sellerKyc2Verified        Boolean                    @default(false)
+  sellerKyc2VerifiedAt      DateTime?
+  kyc2StartedAt             DateTime?
+  fundProtectionDate        DateTime?
+  counterOffers             CounterOffer[]
+  documents                 Document[]
+  escrowDetails             EscrowDetails?
+  escrowSteps               EscrowStep[]
+  payments                  Payment[]
+  statusHistory             TransactionStatusHistory[]
+  buyer                     User                       @relation("BuyerTransactions", fields: [buyerId], references: [id])
+  property                  Property                   @relation(fields: [propertyId], references: [id])
+  seller                    User                       @relation("SellerTransactions", fields: [sellerId], references: [id])
 
   @@map("transactions")
 }
@@ -448,7 +458,8 @@ enum TransactionStatus {
   OFFER
   NEGOTIATION
   AGREEMENT
-  ESCROW
+  KYC2_VERIFICATION
+  FUND_PROTECTION
   CLOSING
   COMPLETED
   CANCELLED

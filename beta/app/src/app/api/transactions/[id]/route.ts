@@ -99,9 +99,12 @@ export async function GET(
       )
     }
 
-    // Check if user is involved in the transaction
-    if (transaction.buyerId !== session.user.id && 
-        transaction.sellerId !== session.user.id) {
+    // Check if user is involved in the transaction or is admin
+    const isAdmin = session.user.role === 'ADMIN'
+    const isBuyer = transaction.buyerId === session.user.id
+    const isSeller = transaction.sellerId === session.user.id
+
+    if (!isBuyer && !isSeller && !isAdmin) {
       return NextResponse.json(
         { error: 'You are not authorized to view this transaction' },
         { status: 403 }
@@ -136,6 +139,8 @@ export async function GET(
       purchaseAgreementSigned: transaction.purchaseAgreementSigned,
       buyerSignedPromissory: transaction.buyerSignedPromissory,
       sellerSignedPromissory: transaction.sellerSignedPromissory,
+      buyerSignedMediation: transaction.buyerSignedMediation,
+      sellerSignedMediation: transaction.sellerSignedMediation,
       
       // Payment information
       paymentMethod: transaction.paymentMethod,

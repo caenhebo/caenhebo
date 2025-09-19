@@ -22,21 +22,23 @@ export async function GET(request: NextRequest) {
 
     // Build where clause based on user role
     const where: any = {}
+    const isAdmin = session.user.role === 'ADMIN'
 
     // If propertyId is specified, filter by that property only
     if (propertyId) {
       where.propertyId = propertyId
-    } else {
-      // Otherwise filter by user role
+    } else if (!isAdmin) {
+      // Non-admins only see their own transactions
       where.OR = []
       if (!role || role === 'buyer') {
         where.OR.push({ buyerId: session.user.id })
       }
-      
+
       if (!role || role === 'seller') {
         where.OR.push({ sellerId: session.user.id })
       }
     }
+    // Admins see ALL transactions (no WHERE clause for user)
 
     if (status) {
       where.status = status

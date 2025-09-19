@@ -25,6 +25,7 @@ const TRANSACTION_DOCUMENT_CATEGORIES = [
   'CONTRACT',
   'PROOF_OF_PAYMENT',
   'LEGAL_DOCUMENT',
+  'REPRESENTATION_DOCUMENT',
   'MEDIATION_AGREEMENT',
   'PURCHASE_AGREEMENT',
   'PAYMENT_PROOF',
@@ -154,12 +155,12 @@ export async function POST(request: NextRequest, { params }: Params) {
       data: {
         userId: session.user.id,
         transactionId,
-        type: documentType as any,
+        documentType: documentType as any,
         filename: uniqueFilename,
         originalName: file.name,
         mimeType: file.type,
-        size: file.size,
-        url: `/uploads/transactions/${transactionId}/${uniqueFilename}`,
+        fileSize: file.size,
+        fileUrl: `/uploads/transactions/${transactionId}/${uniqueFilename}`,
         title,
         description
       }
@@ -193,12 +194,12 @@ export async function POST(request: NextRequest, { params }: Params) {
       success: true,
       document: {
         id: document.id,
-        type: document.type,
+        type: document.documentType,
         filename: document.filename,
         originalName: document.originalName,
         mimeType: document.mimeType,
-        size: document.size,
-        url: document.url,
+        size: document.fileSize,
+        url: document.fileUrl,
         title: document.title,
         description: document.description,
         createdAt: document.createdAt

@@ -129,6 +129,30 @@ export default function Stage3Simple({
     setSuccess(null)
 
     try {
+      // Special handling for advancing to KYC2 verification
+      if (action === 'ADVANCE_TO_KYC2') {
+        // Advance to KYC2_VERIFICATION stage
+        const advanceResponse = await fetch(`/api/transactions/${transactionId}/advance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            notes: 'All Stage 3 requirements completed - advancing to KYC Tier 2 Verification'
+          })
+        })
+
+        if (!advanceResponse.ok) {
+          const error = await advanceResponse.json()
+          throw new Error(error.error || 'Failed to advance to KYC Tier 2 Verification')
+        }
+
+        setSuccess('🎉 Successfully advanced to KYC Tier 2 Verification!')
+        if (onStageComplete) {
+          setTimeout(() => onStageComplete(), 2000)
+        }
+        return
+      }
+
+      // Regular Stage 3 actions
       const response = await fetch(`/api/transactions/${transactionId}/stage3`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -143,8 +167,13 @@ export default function Stage3Simple({
       setSuccess('✅ Action completed successfully!')
       await fetchStage3Status()
 
-      if (stage3Status.stage3Complete && onStageComplete) {
-        setTimeout(() => onStageComplete(), 2000)
+      // Check if Stage 3 is now complete after this action
+      const checkResponse = await fetch(`/api/transactions/${transactionId}/stage3`)
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json()
+        if (checkData.status?.stage3Complete) {
+          setStage3Status(prev => ({ ...prev, stage3Complete: true, canAdvanceToEscrow: true }))
+        }
       }
     } catch (err) {
       console.error('Action error:', err)
@@ -238,9 +267,9 @@ export default function Stage3Simple({
     // All done!
     return {
       title: "🎉 Stage 3 Complete!",
-      description: "All requirements have been met. You can now proceed to the Escrow stage.",
-      action: "complete",
-      buttonText: "Continue to Escrow Stage →",
+      description: "All requirements have been met. You can now proceed to KYC Tier 2 Verification.",
+      action: "ADVANCE_TO_KYC2",
+      buttonText: "Continue to KYC Tier 2 Verification →",
       isFile: false
     }
   }
@@ -301,7 +330,7 @@ export default function Stage3Simple({
             </p>
 
             {/* Big Arrow Pointing Down */}
-            {nextAction.action !== 'wait' && nextAction.action !== 'complete' && (
+            {nextAction.action !== 'wait' && (
               <div className="flex justify-center mb-6 animate-bounce">
                 <ArrowDown className="h-12 w-12 text-blue-600" />
               </div>
@@ -356,11 +385,11 @@ export default function Stage3Simple({
                   </div>
                 )}
               </div>
-            ) : nextAction.action === 'complete' ? (
-              <Button 
+            ) : nextAction.action === 'ADVANCE_TO_ESCROW' ? (
+              <Button
                 size="lg"
                 className="w-full max-w-md mx-auto h-20 text-xl bg-green-600 hover:bg-green-700"
-                onClick={() => onStageComplete && onStageComplete()}
+                onClick={() => handleAction('ADVANCE_TO_ESCROW')}
                 disabled={processing}
               >
                 {processing ? (

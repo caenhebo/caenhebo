@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { createStrigaUser, initiateKYC, StrigaUserData } from '@/lib/striga'
-
-const prisma = new PrismaClient()
 
 export async function POST(request: NextRequest) {
   try {
