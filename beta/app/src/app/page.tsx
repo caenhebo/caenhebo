@@ -49,6 +49,13 @@ export default async function Home() {
               </Button>
             </Link>
           </div>
+          <div className="mt-6">
+            <Link href="/properties">
+              <Button size="lg" variant="ghost" className="text-blue-600 hover:text-blue-700">
+                Browse Properties →
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
 

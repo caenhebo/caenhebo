@@ -105,26 +105,22 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    
-    // Update property
+
+    // Update property - only include fields that exist in the schema
     const updatedProperty = await prisma.property.update({
       where: { id: params.id },
       data: {
-        ...(body.title && { title: body.title }),
-        ...(body.description && { description: body.description }),
-        ...(body.price && { price: body.price }),
-        ...(body.listingStatus && { listingStatus: body.listingStatus }),
-        ...(body.propertyType && { propertyType: body.propertyType }),
-        ...(body.bedrooms && { bedrooms: body.bedrooms }),
-        ...(body.bathrooms && { bathrooms: body.bathrooms }),
-        ...(body.area && { area: body.area }),
-        ...(body.address && { address: body.address }),
-        ...(body.city && { city: body.city }),
-        ...(body.state && { state: body.state }),
-        ...(body.postalCode && { postalCode: body.postalCode }),
-        ...(body.yearBuilt && { yearBuilt: body.yearBuilt }),
-        ...(body.features && { features: body.features }),
-        ...(body.images && { images: body.images }),
+        ...(body.hasOwnProperty('title') && { title: body.title }),
+        ...(body.hasOwnProperty('description') && { description: body.description }),
+        ...(body.hasOwnProperty('price') && { price: body.price }),
+        ...(body.hasOwnProperty('bedrooms') && { bedrooms: body.bedrooms }),
+        ...(body.hasOwnProperty('bathrooms') && { bathrooms: body.bathrooms }),
+        ...(body.hasOwnProperty('area') && { area: body.area }),
+        ...(body.hasOwnProperty('address') && { address: body.address }),
+        ...(body.hasOwnProperty('city') && { city: body.city }),
+        ...(body.hasOwnProperty('state') && { state: body.state }),
+        ...(body.hasOwnProperty('postalCode') && { postalCode: body.postalCode }),
+        ...(body.hasOwnProperty('country') && { country: body.country }),
         updatedAt: new Date()
       }
     })

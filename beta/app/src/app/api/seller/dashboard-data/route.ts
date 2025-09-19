@@ -55,14 +55,15 @@ export async function GET(request: NextRequest) {
         }
       }),
       
-      // Get KYC status from Striga if user has Striga ID
+      // Skip Striga check if KYC is already PASSED to avoid slow API calls
       (async () => {
         const userData = await prisma.user.findUnique({
           where: { id: session.user.id },
           select: { strigaUserId: true, kycStatus: true }
         })
         
-        if (userData?.strigaUserId) {
+        // Only check Striga if KYC is not already PASSED
+        if (userData?.strigaUserId && userData.kycStatus !== 'PASSED') {
           try {
             // Use the correct endpoint: /user/{userId}
             const strigaUser = await strigaApiRequest(`/user/${userData.strigaUserId}`, {

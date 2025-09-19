@@ -7,11 +7,15 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
+      console.error('No session found')
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
+
+    console.log('Session user ID:', session.user.id)
+    console.log('Session user email:', session.user.email)
 
     // Verify user is a buyer
     const user = await prisma.user.findUnique({
@@ -26,6 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all interests with property details
+    console.log('Fetching interests for buyerId:', session.user.id)
     const interests = await prisma.propertyInterest.findMany({
       where: {
         buyerId: session.user.id
@@ -41,6 +46,8 @@ export async function GET(request: NextRequest) {
         interestedAt: 'desc'
       }
     })
+
+    console.log('Found interests:', interests.length)
 
     // Format the response
     const formattedInterests = interests.map(interest => ({

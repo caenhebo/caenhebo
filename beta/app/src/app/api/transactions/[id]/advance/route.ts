@@ -77,6 +77,48 @@ export async function POST(
     }
 
     if (nextStatus === 'ESCROW') {
+      // Check Stage 3 requirements
+      const transactionWithDocs = await prisma.transaction.findUnique({
+        where: { id: transactionId },
+        include: {
+          documents: {
+            where: {
+              documentType: {
+                in: ['REPRESENTATION_DOCUMENT', 'MEDIATION_AGREEMENT']
+              }
+            }
+          }
+        }
+      })
+
+      const hasRepDoc = transactionWithDocs!.documents.some(
+        doc => doc.documentType === 'REPRESENTATION_DOCUMENT'
+      )
+      const hasMedAgreement = transactionWithDocs!.documents.some(
+        doc => doc.documentType === 'MEDIATION_AGREEMENT'
+      )
+
+      if (!hasRepDoc || !hasMedAgreement) {
+        return NextResponse.json(
+          { error: 'Both representation document and mediation agreement are required to advance to Escrow' },
+          { status: 400 }
+        )
+      }
+
+      if (!transactionWithDocs!.buyerHasRep || !transactionWithDocs!.sellerHasRep) {
+        return NextResponse.json(
+          { error: 'Both buyer and seller must confirm representation to advance to Escrow' },
+          { status: 400 }
+        )
+      }
+
+      if (!transactionWithDocs!.mediationSigned) {
+        return NextResponse.json(
+          { error: 'Mediation agreement must be signed to advance to Escrow' },
+          { status: 400 }
+        )
+      }
+
       if (!escrowDetails || !escrowDetails.totalAmount) {
         return NextResponse.json(
           { error: 'Escrow details with total amount are required to advance to Escrow' },

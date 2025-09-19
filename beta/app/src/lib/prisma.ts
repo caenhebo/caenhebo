@@ -6,12 +6,20 @@ declare global {
 
 const prismaClientSingleton = () => {
   return new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    errorFormat: 'pretty',
   })
 }
 
-export const prisma = globalThis.prisma ?? prismaClientSingleton()
+const globalPrisma = global.prisma || prismaClientSingleton()
 
-if (process.env.NODE_ENV !== 'production') {
-  globalThis.prisma = prisma
-}
+export const prisma = globalPrisma
+
+// Always assign to global to ensure singleton
+global.prisma = globalPrisma
+
+// Ensure the client connects on first import
+prisma.$connect().catch((e) => {
+  console.error('Failed to connect Prisma Client:', e)
+  process.exit(1)
+})

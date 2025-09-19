@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { PrismaClient } from '@prisma/client'
-import { notifyOfferAccepted, notifyOfferRejected, notifyCounterOffer } from '@/lib/notifications'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
+import { notifyCounterOffer, notifyOfferAccepted, notifyOfferRejected } from '@/lib/notifications'
 
 export async function POST(
   request: NextRequest,
@@ -31,7 +29,7 @@ export async function POST(
       )
     }
 
-    // Find the transaction
+    // Fetch transaction with related data
     const transaction = await prisma.transaction.findUnique({
       where: { id: transactionId },
       include: {
@@ -51,18 +49,27 @@ export async function POST(
       )
     }
 
-    // Check if user is the seller
-    if (transaction.sellerId !== session.user.id) {
+    // Check if user is the buyer
+    if (transaction.buyerId !== session.user.id) {
       return NextResponse.json(
-        { error: 'Only the seller can respond to offers' },
+        { error: 'Only the buyer can respond to counter-offers' },
         { status: 403 }
       )
     }
 
-    // Check if transaction is in correct status
-    if (!['OFFER', 'NEGOTIATION'].includes(transaction.status)) {
+    // Check if transaction is in NEGOTIATION status
+    if (transaction.status !== 'NEGOTIATION') {
       return NextResponse.json(
-        { error: 'Transaction is not in a state that allows responses' },
+        { error: 'Transaction is not in negotiation phase' },
+        { status: 400 }
+      )
+    }
+
+    // Check if there's a counter-offer from seller to respond to
+    const lastCounterOffer = transaction.counterOffers[0]
+    if (!lastCounterOffer || lastCounterOffer.fromBuyer) {
+      return NextResponse.json(
+        { error: 'No pending counter-offer from seller to respond to' },
         { status: 400 }
       )
     }
@@ -70,16 +77,12 @@ export async function POST(
     let updatedTransaction
 
     if (action === 'accept') {
-      // Accept the current offer
-      const currentPrice = transaction.counterOffers.length > 0 
-        ? transaction.counterOffers[0].price 
-        : transaction.offerPrice
-
+      // Accept the seller's counter-offer
       updatedTransaction = await prisma.transaction.update({
         where: { id: transactionId },
         data: {
           status: 'AGREEMENT',
-          agreedPrice: currentPrice,
+          agreedPrice: lastCounterOffer.price,
           acceptanceDate: new Date()
         },
         include: {
@@ -97,26 +100,26 @@ export async function POST(
           fromStatus: transaction.status,
           toStatus: 'AGREEMENT',
           changedBy: session.user.id,
-          notes: 'Seller accepted the offer'
+          notes: 'Buyer accepted the counter-offer'
         }
       })
 
-      // Send notification to buyer about accepted offer
+      // Send notification to seller
       try {
         await notifyOfferAccepted(
-          transaction.buyerId,
-          `${transaction.seller.firstName} ${transaction.seller.lastName}`,
+          transaction.sellerId,
+          `${transaction.buyer.firstName} ${transaction.buyer.lastName}`,
           transaction.property.title,
-          currentPrice.toNumber(),
+          lastCounterOffer.price.toNumber(),
           transactionId,
           transaction.propertyId
         )
       } catch (notificationError) {
-        console.error('Failed to send offer accepted notification:', notificationError)
+        console.error('Failed to send acceptance notification:', notificationError)
       }
 
     } else if (action === 'reject') {
-      // Reject the offer
+      // Reject the counter-offer
       updatedTransaction = await prisma.transaction.update({
         where: { id: transactionId },
         data: {
@@ -137,31 +140,27 @@ export async function POST(
           fromStatus: transaction.status,
           toStatus: 'CANCELLED',
           changedBy: session.user.id,
-          notes: 'Seller rejected the offer'
+          notes: 'Buyer rejected the counter-offer'
         }
       })
 
-      // Send notification to buyer about rejected offer
+      // Send notification to seller
       try {
-        const rejectedPrice = transaction.counterOffers.length > 0 
-          ? transaction.counterOffers[0].price.toNumber()
-          : transaction.offerPrice.toNumber()
-        
         await notifyOfferRejected(
-          transaction.buyerId,
-          `${transaction.seller.firstName} ${transaction.seller.lastName}`,
+          transaction.sellerId,
+          `${transaction.buyer.firstName} ${transaction.buyer.lastName}`,
           transaction.property.title,
-          rejectedPrice,
+          lastCounterOffer.price.toNumber(),
           transactionId,
           transaction.propertyId,
           message
         )
       } catch (notificationError) {
-        console.error('Failed to send offer rejected notification:', notificationError)
+        console.error('Failed to send rejection notification:', notificationError)
       }
 
     } else if (action === 'counter') {
-      // Make counter offer
+      // Make a new counter-offer
       if (!counterPrice || parseFloat(counterPrice) <= 0) {
         return NextResponse.json(
           { error: 'Counter price is required and must be greater than zero' },
@@ -169,23 +168,20 @@ export async function POST(
         )
       }
 
-      // Create counter offer
+      // Create counter offer from buyer
       await prisma.counterOffer.create({
         data: {
           transactionId: transactionId,
           price: parseFloat(counterPrice),
           message: message || null,
           terms: terms || null,
-          fromBuyer: false // This is from seller
+          fromBuyer: true // This is from buyer
         }
       })
 
-      // Update transaction status to NEGOTIATION and payment method if provided
-      const updateData: any = {
-        status: 'NEGOTIATION'
-      }
+      // Update transaction payment method if provided
+      const updateData: any = {}
       
-      // Update payment method if provided in counter offer
       if (paymentMethod) {
         updateData.paymentMethod = paymentMethod
         if (paymentMethod === 'HYBRID' && cryptoPercentage !== undefined && fiatPercentage !== undefined) {
@@ -194,9 +190,15 @@ export async function POST(
         }
       }
       
-      updatedTransaction = await prisma.transaction.update({
+      if (Object.keys(updateData).length > 0) {
+        await prisma.transaction.update({
+          where: { id: transactionId },
+          data: updateData
+        })
+      }
+
+      updatedTransaction = await prisma.transaction.findUnique({
         where: { id: transactionId },
-        data: updateData,
         include: {
           property: true,
           buyer: true,
@@ -207,63 +209,31 @@ export async function POST(
         }
       })
 
-      // Create status history if not already in negotiation
-      if (transaction.status !== 'NEGOTIATION') {
-        await prisma.transactionStatusHistory.create({
-          data: {
-            transactionId: transactionId,
-            fromStatus: transaction.status,
-            toStatus: 'NEGOTIATION',
-            changedBy: session.user.id,
-            notes: 'Seller made counter offer'
-          }
-        })
-      }
-
-      // Send notification to buyer about counter offer
+      // Send notification to seller about buyer's counter-offer
       try {
         await notifyCounterOffer(
-          transaction.buyerId,
-          `${transaction.seller.firstName} ${transaction.seller.lastName}`,
+          transaction.sellerId,
+          `${transaction.buyer.firstName} ${transaction.buyer.lastName}`,
           transaction.property.title,
           parseFloat(counterPrice),
           transactionId,
           transaction.propertyId,
-          false // from seller
+          message
         )
       } catch (notificationError) {
-        console.error('Failed to send counter offer notification:', notificationError)
+        console.error('Failed to send counter-offer notification:', notificationError)
       }
     }
 
     return NextResponse.json({
       success: true,
-      transaction: {
-        id: updatedTransaction.id,
-        status: updatedTransaction.status,
-        offerPrice: updatedTransaction.offerPrice.toString(),
-        agreedPrice: updatedTransaction.agreedPrice?.toString() || null,
-        acceptanceDate: updatedTransaction.acceptanceDate?.toISOString() || null,
-        property: updatedTransaction.property,
-        buyer: updatedTransaction.buyer,
-        seller: updatedTransaction.seller,
-        counterOffers: updatedTransaction.counterOffers.map(co => ({
-          id: co.id,
-          price: co.price.toString(),
-          message: co.message,
-          terms: co.terms,
-          fromBuyer: co.fromBuyer,
-          accepted: co.accepted,
-          rejected: co.rejected,
-          createdAt: co.createdAt.toISOString()
-        }))
-      }
+      transaction: updatedTransaction
     })
 
   } catch (error) {
-    console.error('Transaction response error:', error)
+    console.error('Error responding to counter-offer:', error)
     return NextResponse.json(
-      { error: 'Failed to respond to transaction' },
+      { error: 'Failed to process response' },
       { status: 500 }
     )
   } finally {

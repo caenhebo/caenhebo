@@ -10,6 +10,10 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DocumentAccessManager } from '@/components/seller/document-access-manager'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { 
   ArrowLeft, 
   Building, 
@@ -46,8 +50,6 @@ interface Property {
   title: string
   description: string
   price: number
-  propertyType: string
-  listingStatus: string
   complianceStatus: string
   bedrooms: number
   bathrooms: number
@@ -57,9 +59,6 @@ interface Property {
   state: string
   postalCode: string
   country: string
-  yearBuilt: number
-  features: string[]
-  images: string[]
   createdAt: string
   updatedAt: string
   interestCount?: number
@@ -75,6 +74,8 @@ export default function PropertyManagementPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [editedProperty, setEditedProperty] = useState<Property | null>(null)
   const [error, setError] = useState('')
   const [transactions, setTransactions] = useState<any[]>([])
   const [documents, setDocuments] = useState<any[]>([])
@@ -176,24 +177,73 @@ export default function PropertyManagementPage() {
   }
 
   const handleStatusChange = async (newStatus: string) => {
+    // Note: listingStatus field doesn't exist in database schema
+    // This function is currently a no-op but kept for future implementation
+    console.log('Status change requested:', newStatus)
+    setError('Status change not yet implemented')
+  }
+
+  const handleEditToggle = () => {
+    if (isEditing) {
+      // Cancel editing - revert changes
+      setEditedProperty(null)
+      setIsEditing(false)
+    } else {
+      // Start editing - copy current property
+      setEditedProperty({
+        ...property!
+      })
+      setIsEditing(true)
+    }
+  }
+
+  const handleSaveProperty = async () => {
+    if (!editedProperty) return
+
     try {
+      setIsSaving(true)
+      setError('')
+
       const response = await fetch(`/api/properties/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listingStatus: newStatus })
+        body: JSON.stringify({
+          title: editedProperty.title,
+          description: editedProperty.description,
+          price: editedProperty.price,
+          bedrooms: editedProperty.bedrooms,
+          bathrooms: editedProperty.bathrooms,
+          area: editedProperty.area,
+          address: editedProperty.address,
+          city: editedProperty.city,
+          state: editedProperty.state,
+          postalCode: editedProperty.postalCode,
+          country: editedProperty.country
+        })
       })
 
       if (response.ok) {
         const data = await response.json()
         setProperty(data.property)
+        setEditedProperty(null)
+        setIsEditing(false)
       } else {
-        setError('Failed to update property status')
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to update property')
       }
     } catch (error) {
       console.error('Error updating property:', error)
-      setError('Failed to update property status')
+      setError('Failed to update property')
+    } finally {
+      setIsSaving(false)
     }
   }
+
+  const handleInputChange = (field: keyof Property, value: any) => {
+    if (!editedProperty) return
+    setEditedProperty({ ...editedProperty, [field]: value })
+  }
+
 
   if (status === 'loading' || isLoading) {
     return (
@@ -262,118 +312,351 @@ export default function PropertyManagementPage() {
               <Eye className="mr-2 h-4 w-4" />
               View Public Listing
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => setIsEditing(!isEditing)}
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              {isEditing ? 'Cancel Edit' : 'Edit'}
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={transactions.length > 0}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+            {!isEditing ? (
+              <Button
+                variant="outline"
+                onClick={handleEditToggle}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit Property
+              </Button>
+            ) : (
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={handleEditToggle}
+                  disabled={isSaving}
+                >
+                  Cancel
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the property
-                    and all associated data.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="bg-red-600 hover:bg-red-700"
-                  >
-                    {isDeleting ? 'Deleting...' : 'Delete Property'}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                <Button
+                  onClick={handleSaveProperty}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Grandma-friendly Alert for New Offers at the Top */}
+        {transactions.filter(t => t.status === 'OFFER' || (t.status === 'NEGOTIATION' && t.needsSellerResponse)).length > 0 && (
+          <Alert className="mb-6 border-4 border-green-400 bg-green-50">
+            <AlertCircle className="h-6 w-6 text-green-600" />
+            <AlertDescription className="text-lg font-semibold">
+              🎉 You have {transactions.filter(t => t.status === 'OFFER' || (t.status === 'NEGOTIATION' && t.needsSellerResponse)).length} offer(s) waiting for your response! 
+              Look for the yellow box below with instructions.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Property Overview */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-2xl">{property.title}</CardTitle>
-                    <CardDescription className="mt-1">
-                      <MapPin className="inline h-4 w-4 mr-1" />
-                      {property.address}, {property.city}, {property.state} {property.postalCode}
-                    </CardDescription>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-green-600">€{property.price.toLocaleString()}</p>
-                    <p className="text-sm text-gray-500">Property ID: {property.code}</p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                  <div className="flex items-center">
-                    <Bed className="h-5 w-5 text-gray-400 mr-2" />
-                    <span>{property.bedrooms} Bedrooms</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Bath className="h-5 w-5 text-gray-400 mr-2" />
-                    <span>{property.bathrooms} Bathrooms</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Square className="h-5 w-5 text-gray-400 mr-2" />
-                    <span>{property.area} m²</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Calendar className="h-5 w-5 text-gray-400 mr-2" />
-                    <span>Built {property.yearBuilt}</span>
-                  </div>
-                </div>
-
-                <div className="prose max-w-none">
-                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Description</h4>
-                  <p className="text-gray-600">{property.description}</p>
-                </div>
-
-                {property.features && property.features.length > 0 && (
-                  <div className="mt-6">
-                    <h4 className="text-sm font-semibold text-gray-900 mb-2">Features</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {property.features.map((feature, index) => (
-                        <Badge key={index} variant="secondary">
-                          {feature}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Property Images */}
-            {property.images && property.images.length > 0 && (
+            {!isEditing ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Property Images</CardTitle>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-2xl">{property.title}</CardTitle>
+                      <CardDescription className="mt-1">
+                        <MapPin className="inline h-4 w-4 mr-1" />
+                        {property.address}, {property.city}, {property.state} {property.postalCode}
+                      </CardDescription>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-green-600">€{property.price.toLocaleString()}</p>
+                      <p className="text-sm text-gray-500">Property ID: {property.code}</p>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {property.images.map((image, index) => (
-                      <img
-                        key={index}
-                        src={image}
-                        alt={`Property image ${index + 1}`}
-                        className="rounded-lg object-cover w-full h-40"
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                    <div className="flex items-center">
+                      <Bed className="h-5 w-5 text-gray-400 mr-2" />
+                      <span>{property.bedrooms} Bedrooms</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Bath className="h-5 w-5 text-gray-400 mr-2" />
+                      <span>{property.bathrooms} Bathrooms</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Square className="h-5 w-5 text-gray-400 mr-2" />
+                      <span>{property.area} m²</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Calendar className="h-5 w-5 text-gray-400 mr-2" />
+                      <span>Built {property.yearBuilt}</span>
+                    </div>
+                  </div>
+
+                  <div className="prose max-w-none">
+                    <h4 className="text-sm font-semibold text-gray-900 mb-2">Description</h4>
+                    <p className="text-gray-600">{property.description}</p>
+                  </div>
+
+                </CardContent>
+              </Card>
+            ) : (
+              /* Edit Form */
+              <Card>
+                <CardHeader>
+                  <CardTitle>Edit Property Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Basic Information */}
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="title">Property Title</Label>
+                      <Input
+                        id="title"
+                        value={editedProperty?.title || ''}
+                        onChange={(e) => handleInputChange('title', e.target.value)}
                       />
-                    ))}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        value={editedProperty?.description || ''}
+                        onChange={(e) => handleInputChange('description', e.target.value)}
+                        rows={4}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="price">Price (€)</Label>
+                        <Input
+                          id="price"
+                          type="number"
+                          value={editedProperty?.price || ''}
+                          onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="propertyType">Property Type</Label>
+                        <Select
+                          value={editedProperty?.propertyType || ''}
+                          onValueChange={(value) => handleInputChange('propertyType', value)}
+                        >
+                          <SelectTrigger id="propertyType">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="APARTMENT">Apartment</SelectItem>
+                            <SelectItem value="HOUSE">House</SelectItem>
+                            <SelectItem value="VILLA">Villa</SelectItem>
+                            <SelectItem value="CONDO">Condo</SelectItem>
+                            <SelectItem value="LAND">Land</SelectItem>
+                            <SelectItem value="COMMERCIAL">Commercial</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Property Details */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div>
+                        <Label htmlFor="bedrooms">Bedrooms</Label>
+                        <Input
+                          id="bedrooms"
+                          type="number"
+                          min="0"
+                          value={editedProperty?.bedrooms || ''}
+                          onChange={(e) => handleInputChange('bedrooms', parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="bathrooms">Bathrooms</Label>
+                        <Input
+                          id="bathrooms"
+                          type="number"
+                          min="0"
+                          value={editedProperty?.bathrooms || ''}
+                          onChange={(e) => handleInputChange('bathrooms', parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="area">Area (m²)</Label>
+                        <Input
+                          id="area"
+                          type="number"
+                          min="0"
+                          value={editedProperty?.area || ''}
+                          onChange={(e) => handleInputChange('area', parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="yearBuilt">Year Built</Label>
+                        <Input
+                          id="yearBuilt"
+                          type="number"
+                          min="1800"
+                          max={new Date().getFullYear()}
+                          value={editedProperty?.yearBuilt || ''}
+                          onChange={(e) => handleInputChange('yearBuilt', parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Location */}
+                    <div className="space-y-4">
+                      <h4 className="font-semibold">Location</h4>
+
+                      <div>
+                        <Label htmlFor="address">Street Address</Label>
+                        <Input
+                          id="address"
+                          value={editedProperty?.address || ''}
+                          onChange={(e) => handleInputChange('address', e.target.value)}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="city">City</Label>
+                          <Input
+                            id="city"
+                            value={editedProperty?.city || ''}
+                            onChange={(e) => handleInputChange('city', e.target.value)}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="state">State/Province</Label>
+                          <Input
+                            id="state"
+                            value={editedProperty?.state || ''}
+                            onChange={(e) => handleInputChange('state', e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="postalCode">Postal Code</Label>
+                          <Input
+                            id="postalCode"
+                            value={editedProperty?.postalCode || ''}
+                            onChange={(e) => handleInputChange('postalCode', e.target.value)}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="country">Country</Label>
+                          <Input
+                            id="country"
+                            value={editedProperty?.country || ''}
+                            onChange={(e) => handleInputChange('country', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+
+            {/* Grandma-friendly: NO offers yet */}
+            {transactions.length === 0 && property.complianceStatus === 'APPROVED' && (
+              <Card className="border-4 border-blue-400 shadow-xl">
+                <CardHeader className="bg-blue-50">
+                  <CardTitle className="text-xl flex items-center">
+                    <AlertCircle className="mr-3 h-6 w-6 text-blue-600" />
+                    Waiting for Offers
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="bg-white border-2 border-blue-200 rounded-xl p-6 text-center">
+                    <h3 className="text-lg font-bold mb-3">
+                      👀 No offers yet on your property
+                    </h3>
+                    <p className="text-gray-700 mb-4">
+                      Your property is live and visible to buyers. When someone makes an offer, 
+                      you'll see a big yellow notification here!
+                    </p>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-sm text-gray-600">
+                        <strong>What happens next:</strong><br />
+                        1. Buyers will see your property<br />
+                        2. They can make offers<br />
+                        3. You'll get notified immediately<br />
+                        4. You can accept, reject, or counter-offer
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Grandma-friendly Offer Guidance - When offers exist */}
+            {transactions.length > 0 && transactions.some(t => t.status === 'OFFER' || t.status === 'NEGOTIATION') && (
+              <Card className="border-4 border-yellow-400 shadow-xl">
+                <CardHeader className="bg-yellow-50">
+                  <CardTitle className="text-2xl flex items-center">
+                    <AlertCircle className="mr-3 h-8 w-8 text-yellow-600" />
+                    You Have New Offers! 🎉
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="bg-white border-4 border-yellow-200 rounded-xl p-6">
+                    <h3 className="text-xl font-bold mb-4 text-center">
+                      👉 What You Need To Do Now:
+                    </h3>
+                    <p className="text-lg text-gray-700 mb-6 text-center">
+                      Review and respond to buyer offers for your property
+                    </p>
+                    <div className="space-y-3">
+                      {transactions.filter(t => t.status === 'OFFER' || t.status === 'NEGOTIATION').map((transaction, index) => (
+                        <div key={transaction.id} className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold text-lg">
+                                Offer #{index + 1}: €{Number(transaction.offerPrice).toLocaleString()}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                From: {transaction.buyer?.firstName || ''} {transaction.buyer?.lastName || transaction.buyer?.email}
+                              </p>
+                            </div>
+                            <Button 
+                              size="lg"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              onClick={() => router.push(`/transactions/${transaction.id}`)}
+                            >
+                              Review & Respond →
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600">
+                        <strong>Tip:</strong> You can accept, reject, or make a counter-offer. 
+                        The buyer is waiting for your response!
+                      </p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -382,7 +665,7 @@ export default function PropertyManagementPage() {
             {/* Transactions */}
             <Card>
               <CardHeader>
-                <CardTitle>Transaction Activity</CardTitle>
+                <CardTitle>All Offers & Transactions</CardTitle>
                 <CardDescription>
                   {transactions.length} active transaction{transactions.length !== 1 ? 's' : ''}
                 </CardDescription>
@@ -784,6 +1067,51 @@ export default function PropertyManagementPage() {
                 <p className="mt-2">
                   Email: <a href="mailto:support@caenhebo.com" className="text-blue-600 hover:underline">support@caenhebo.com</a>
                 </p>
+              </CardContent>
+            </Card>
+
+            {/* Delete Property Card */}
+            <Card className="mt-6 border-red-200">
+              <CardHeader>
+                <CardTitle className="text-red-600">Danger Zone</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      disabled={transactions.length > 0}
+                      className="w-full"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Property
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the property
+                        and all associated data.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDelete}
+                        disabled={isDeleting}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        {isDeleting ? 'Deleting...' : 'Delete Property'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                {transactions.length > 0 && (
+                  <p className="text-sm text-gray-500 mt-2">
+                    Cannot delete property with active transactions
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>

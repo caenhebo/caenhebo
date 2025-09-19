@@ -15,6 +15,7 @@ import { Search, FileText, CreditCard, Home, Shield, Loader2, Building, Wallet, 
 import WalletDisplay from '@/components/wallet/wallet-display'
 import { RefreshWalletsButton } from '@/components/wallet/refresh-wallets-button'
 import { PropertyInterests } from '@/components/buyer/property-interests'
+import PropertyOffers from '@/components/buyer/property-offers'
 import { BankAccountDisplay } from '@/components/banking/bank-account-display'
 import { StrigaIBANDisplay } from '@/components/banking/striga-iban-display'
 
@@ -318,7 +319,15 @@ export default function BuyerDashboard() {
                 </form>
                 
                 {liveKycStatus === 'PASSED' && (
-                  <div className="mt-4 pt-4 border-t">
+                  <div className="mt-4 pt-4 border-t space-y-2">
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => router.push('/buyer/properties')}
+                    >
+                      <Home className="mr-2 h-4 w-4" />
+                      Browse All Properties
+                    </Button>
                     <Button 
                       variant="outline" 
                       className="w-full"
@@ -417,6 +426,28 @@ export default function BuyerDashboard() {
                   <Shield className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-sm text-gray-500">
                     Complete KYC verification to express interest in properties.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* My Property Offers Section */}
+        <div className="mt-6">
+          {liveKycStatus === 'PASSED' ? (
+            <PropertyOffers />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>My Property Offers</CardTitle>
+                <CardDescription>Properties you've made offers on</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <Shield className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-sm text-gray-500">
+                    Complete KYC verification to make offers on properties.
                   </p>
                 </div>
               </CardContent>

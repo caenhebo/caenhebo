@@ -134,6 +134,13 @@ export async function GET(
       // Agreements
       mediationSigned: transaction.mediationSigned,
       purchaseAgreementSigned: transaction.purchaseAgreementSigned,
+      buyerSignedPromissory: transaction.buyerSignedPromissory,
+      sellerSignedPromissory: transaction.sellerSignedPromissory,
+      
+      // Payment information
+      paymentMethod: transaction.paymentMethod,
+      cryptoPercentage: transaction.cryptoPercentage,
+      fiatPercentage: transaction.fiatPercentage,
       
       // Relations
       property: transaction.property,

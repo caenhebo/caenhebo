@@ -5,6 +5,8 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/header'
 import DocumentManager from '@/components/documents/document-manager'
+import Stage3Simple from '@/components/transactions/stage3-simple'
+import PromissoryAgreement from '@/components/transactions/promissory-agreement'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -13,6 +15,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Slider } from '@/components/ui/slider'
+import { Bitcoin, DollarSign } from 'lucide-react'
 import { 
   ArrowLeft,
   Euro,
@@ -53,6 +58,11 @@ interface Transaction {
   sellerHasRep: boolean
   mediationSigned: boolean
   purchaseAgreementSigned: boolean
+  buyerSignedPromissory?: boolean
+  sellerSignedPromissory?: boolean
+  paymentMethod: 'FIAT' | 'CRYPTO' | 'HYBRID'
+  cryptoPercentage?: number
+  fiatPercentage?: number
   property: {
     id: string
     code: string
@@ -133,7 +143,10 @@ export default function TransactionDetailPage({ params }: PageProps) {
     action: '',
     counterPrice: '',
     message: '',
-    terms: ''
+    terms: '',
+    paymentMethod: 'FIAT' as 'FIAT' | 'CRYPTO' | 'HYBRID',
+    cryptoPercentage: 50,
+    fiatPercentage: 50
   })
 
   useEffect(() => {
@@ -187,7 +200,12 @@ export default function TransactionDetailPage({ params }: PageProps) {
     setError('')
     
     try {
-      const response = await fetch(`/api/transactions/${id}/respond`, {
+      // Use different endpoint for buyer responses
+      const endpoint = transaction.userRole === 'buyer' 
+        ? `/api/transactions/${id}/buyer-respond`
+        : `/api/transactions/${id}/respond`
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -196,7 +214,10 @@ export default function TransactionDetailPage({ params }: PageProps) {
           action: responseForm.action,
           counterPrice: responseForm.counterPrice || undefined,
           message: responseForm.message || undefined,
-          terms: responseForm.terms || undefined
+          terms: responseForm.terms || undefined,
+          paymentMethod: responseForm.action === 'counter' ? responseForm.paymentMethod : undefined,
+          cryptoPercentage: responseForm.action === 'counter' && responseForm.paymentMethod === 'HYBRID' ? responseForm.cryptoPercentage : undefined,
+          fiatPercentage: responseForm.action === 'counter' && responseForm.paymentMethod === 'HYBRID' ? responseForm.fiatPercentage : undefined
         })
       })
 
@@ -311,13 +332,71 @@ export default function TransactionDetailPage({ params }: PageProps) {
   }
 
   const canRespond = () => {
-    return transaction?.userRole === 'seller' && 
-           ['OFFER', 'NEGOTIATION'].includes(transaction.status)
+    if (!transaction) return false
+    
+    // Seller can respond to initial offer or during negotiation
+    if (transaction.userRole === 'seller' && ['OFFER', 'NEGOTIATION'].includes(transaction.status)) {
+      return true
+    }
+    
+    // Buyer can make counter-offers during negotiation
+    if (transaction.userRole === 'buyer' && transaction.status === 'NEGOTIATION') {
+      // Check if the last counter-offer was from seller (so buyer needs to respond)
+      const lastCounterOffer = transaction.counterOffers?.[0]
+      return lastCounterOffer && !lastCounterOffer.fromBuyer
+    }
+    
+    return false
   }
 
   const canAdvance = () => {
     const advanceable = ['AGREEMENT', 'ESCROW', 'CLOSING']
     return transaction && advanceable.includes(transaction.status)
+  }
+
+  const getGrandmaGuidance = () => {
+    if (!transaction || transaction.userRole !== 'seller') return null
+
+    // Check transaction status and counter offers to determine what seller should do
+    if (transaction.status === 'OFFER') {
+      return {
+        title: "🎯 You Have a New Offer!",
+        description: "A buyer wants to purchase your property. Before responding, make sure to check if you have other offers on this property from your property management page. Then decide what to do with this specific offer.",
+        action: "respond",
+        buttonText: "Respond to Offer",
+        priority: "high",
+        extraInfo: "💡 Tip: Check your property page to compare with other offers before deciding"
+      }
+    }
+
+    if (transaction.status === 'NEGOTIATION') {
+      // Check if there's a counter-offer from buyer that seller needs to respond to
+      const lastCounterOffer = transaction.counterOffers?.[0]
+      if (lastCounterOffer && lastCounterOffer.fromBuyer) {
+        return {
+          title: "💬 Buyer Made a Counter-Offer!",
+          description: "The buyer has responded with a new price. You need to decide if you want to accept it or make another counter-offer.",
+          action: "respond",
+          buttonText: "Respond to Counter-Offer", 
+          priority: "high"
+        }
+      } else {
+        return {
+          title: "⏳ Waiting for Buyer's Response",
+          description: "You made a counter-offer. Now wait for the buyer to respond.",
+          action: "wait",
+          buttonText: "",
+          priority: "low"
+        }
+      }
+    }
+
+    if (transaction.status === 'AGREEMENT') {
+      // Don't show grandma guidance for AGREEMENT - Stage3Simple handles it
+      return null
+    }
+
+    return null
   }
 
   if (status === 'loading' || isLoading) {
@@ -399,6 +478,75 @@ export default function TransactionDetailPage({ params }: PageProps) {
           </Alert>
         )}
 
+        {/* Grandma-Style Action Guidance for Sellers */}
+        {getGrandmaGuidance() && (
+          <Card className={`mb-6 border-4 shadow-xl ${
+            getGrandmaGuidance()?.priority === 'high' ? 'border-yellow-400 bg-yellow-50' : 
+            getGrandmaGuidance()?.priority === 'medium' ? 'border-blue-400 bg-blue-50' : 
+            'border-gray-300 bg-gray-50'
+          }`}>
+            <CardHeader className={`${
+              getGrandmaGuidance()?.priority === 'high' ? 'bg-yellow-100' : 
+              getGrandmaGuidance()?.priority === 'medium' ? 'bg-blue-100' : 
+              'bg-gray-100'
+            }`}>
+              <CardTitle className="text-2xl flex items-center">
+                <AlertCircle className={`mr-3 h-8 w-8 ${
+                  getGrandmaGuidance()?.priority === 'high' ? 'text-yellow-600' : 
+                  getGrandmaGuidance()?.priority === 'medium' ? 'text-blue-600' : 
+                  'text-gray-600'
+                }`} />
+                {getGrandmaGuidance()?.title}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <p className="text-lg leading-relaxed text-gray-700">
+                  {getGrandmaGuidance()?.description}
+                </p>
+                
+                {getGrandmaGuidance()?.extraInfo && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-blue-800 font-medium">{getGrandmaGuidance()?.extraInfo}</p>
+                    <div className="mt-3">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => router.push(`/seller/properties/${transaction.propertyId}`)}
+                        className="text-blue-700 border-blue-300 hover:bg-blue-100"
+                      >
+                        <Home className="mr-2 h-4 w-4" />
+                        View All Offers for This Property
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
+                {getGrandmaGuidance()?.action === 'respond' && canRespond() && (
+                  <div className="flex justify-center">
+                    <Button 
+                      size="lg" 
+                      className="text-lg px-8 py-4 h-auto"
+                      onClick={() => setIsResponseDialogOpen(true)}
+                    >
+                      <MessageSquare className="mr-3 h-5 w-5" />
+                      {getGrandmaGuidance()?.buttonText}
+                    </Button>
+                  </div>
+                )}
+                
+                {getGrandmaGuidance()?.action === 'wait' && (
+                  <div className="text-center">
+                    <div className="inline-flex items-center px-6 py-3 rounded-lg bg-blue-100 text-blue-800">
+                      <Clock className="mr-2 h-5 w-5" />
+                      <span className="font-medium">No action needed - waiting for buyer</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
@@ -470,6 +618,31 @@ export default function TransactionDetailPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
+            {/* Promissory Purchase & Sale Agreement - Must be signed first */}
+            {transaction.status === 'AGREEMENT' && !transaction.purchaseAgreementSigned && (
+              <PromissoryAgreement
+                transactionId={transaction.id}
+                userRole={transaction.userRole}
+                buyerSigned={transaction.statusHistory?.some(h => h.notes?.includes('Buyer signed the Promissory')) || false}
+                sellerSigned={transaction.statusHistory?.some(h => h.notes?.includes('Seller signed the Promissory')) || false}
+                agreedPrice={transaction.agreedPrice || transaction.offerPrice}
+                propertyTitle={transaction.property.title}
+                propertyCode={transaction.property.code}
+                onComplete={() => fetchTransaction()}
+              />
+            )}
+
+            {/* Stage 3: Representation & Mediation Panel - Only after promissory is signed */}
+            {transaction.status === 'AGREEMENT' && transaction.purchaseAgreementSigned && (
+              <Stage3Simple
+                transactionId={transaction.id}
+                userRole={transaction.buyerId === session.user.id ? 'buyer' : 
+                         transaction.sellerId === session.user.id ? 'seller' : 'admin'}
+                userId={session.user.id}
+                onStageComplete={handleAdvanceStage}
+              />
+            )}
+
             {/* Offer Details */}
             <Card>
               <CardHeader>
@@ -495,6 +668,27 @@ export default function TransactionDetailPage({ params }: PageProps) {
                       </div>
                     </div>
                   )}
+                  
+                  <div>
+                    <div className="text-sm text-gray-600 mb-1">Payment Method</div>
+                    <div className="font-medium flex items-center">
+                      {transaction.paymentMethod === 'FIAT' && (
+                        <><Euro className="h-4 w-4 mr-2" />Bank Transfer (100% EUR)</>  
+                      )}
+                      {transaction.paymentMethod === 'CRYPTO' && (
+                        <><DollarSign className="h-4 w-4 mr-2" />Cryptocurrency (100%)</>  
+                      )}
+                      {transaction.paymentMethod === 'HYBRID' && (
+                        <>
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Hybrid ({transaction.fiatPercentage || 50}% EUR / {transaction.cryptoPercentage || 50}% Crypto)
+                        </>
+                      )}
+                      {!transaction.paymentMethod && (
+                        <><CreditCard className="h-4 w-4 mr-2 text-gray-400" />Traditional Bank Transfer (default)</>
+                      )}
+                    </div>
+                  </div>
                   
                   <div>
                     <div className="text-sm text-gray-600 mb-1">Offer Date</div>
@@ -611,26 +805,29 @@ export default function TransactionDetailPage({ params }: PageProps) {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Shield className="mr-2 h-5 w-5" />
-                  Actions
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+            {/* Actions - Hide when in Stage 3 (AGREEMENT) to avoid confusion */}
+            {transaction.status !== 'AGREEMENT' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Shield className="mr-2 h-5 w-5" />
+                    Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
                 {canRespond() && (
                   <Dialog open={isResponseDialogOpen} onOpenChange={setIsResponseDialogOpen}>
                     <DialogTrigger asChild>
                       <Button className="w-full">
                         <MessageSquare className="mr-2 h-4 w-4" />
-                        Respond to Offer
+                        {transaction?.userRole === 'buyer' ? 'Respond to Counter-Offer' : 'Respond to Offer'}
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-lg">
                       <DialogHeader>
-                        <DialogTitle>Respond to Offer</DialogTitle>
+                        <DialogTitle>
+                          {transaction?.userRole === 'buyer' ? 'Respond to Counter-Offer' : 'Respond to Offer'}
+                        </DialogTitle>
                       </DialogHeader>
                       
                       <div className="space-y-4">
@@ -646,7 +843,13 @@ export default function TransactionDetailPage({ params }: PageProps) {
                             </Button>
                             <Button
                               variant={responseForm.action === 'counter' ? 'default' : 'outline'}
-                              onClick={() => setResponseForm(prev => ({ ...prev, action: 'counter' }))}
+                              onClick={() => setResponseForm(prev => ({ 
+                                ...prev, 
+                                action: 'counter',
+                                paymentMethod: transaction?.paymentMethod || 'FIAT',
+                                cryptoPercentage: transaction?.cryptoPercentage || 50,
+                                fiatPercentage: transaction?.fiatPercentage || 50
+                              }))}
                               className="text-sm"
                             >
                               Counter
@@ -661,19 +864,135 @@ export default function TransactionDetailPage({ params }: PageProps) {
                           </div>
                         </div>
                         
-                        {responseForm.action === 'counter' && (
-                          <div>
-                            <Label htmlFor="counter-price">Counter Offer Price (EUR)</Label>
-                            <Input
-                              id="counter-price"
-                              type="number"
-                              min="1"
-                              step="1000"
-                              placeholder="Enter your counter offer"
-                              value={responseForm.counterPrice}
-                              onChange={(e) => setResponseForm(prev => ({ ...prev, counterPrice: e.target.value }))}
-                            />
+                        {responseForm.action === 'accept' && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <h4 className="font-semibold text-green-800 mb-3">You are accepting this offer with:</h4>
+                            
+                            <div className="space-y-3">
+                              <div>
+                                <span className="text-sm text-gray-600">Offer Price:</span>
+                                <div className="font-bold text-lg text-green-700">
+                                  {transaction.counterOffers.length > 0 
+                                    ? formatPrice(transaction.counterOffers[0].price)
+                                    : formatPrice(transaction.offerPrice)
+                                  }
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <span className="text-sm text-gray-600">Payment Method:</span>
+                                <div className="font-medium flex items-center mt-1">
+                                  {transaction.paymentMethod === 'FIAT' && (
+                                    <><CreditCard className="h-4 w-4 mr-2 text-blue-600" />Traditional Bank Transfer (100% EUR)</>  
+                                  )}
+                                  {transaction.paymentMethod === 'CRYPTO' && (
+                                    <><Bitcoin className="h-4 w-4 mr-2 text-orange-500" />Cryptocurrency (100%)</>  
+                                  )}
+                                  {transaction.paymentMethod === 'HYBRID' && (
+                                    <>
+                                      <Euro className="h-4 w-4 mr-2 text-green-600" />
+                                      Hybrid Payment: {transaction.fiatPercentage || 50}% EUR + {transaction.cryptoPercentage || 50}% Crypto
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                              <div className="flex items-start">
+                                <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
+                                <div className="text-sm text-yellow-800">
+                                  <strong>Important:</strong> By accepting, you agree to receive payment using the method specified by the buyer. This cannot be changed after acceptance.
+                                </div>
+                              </div>
+                            </div>
                           </div>
+                        )}
+                        
+                        {responseForm.action === 'counter' && (
+                          <>
+                            <div>
+                              <Label htmlFor="counter-price">Counter Offer Price (EUR)</Label>
+                              <Input
+                                id="counter-price"
+                                type="number"
+                                min="1"
+                                step="1000"
+                                placeholder="Enter your counter offer"
+                                value={responseForm.counterPrice}
+                                onChange={(e) => setResponseForm(prev => ({ ...prev, counterPrice: e.target.value }))}
+                              />
+                            </div>
+                            
+                            <div>
+                              <Label>Payment Method</Label>
+                              <RadioGroup 
+                                value={responseForm.paymentMethod} 
+                                onValueChange={(value: 'FIAT' | 'CRYPTO' | 'HYBRID') => 
+                                  setResponseForm(prev => ({ ...prev, paymentMethod: value }))
+                                }
+                              >
+                                <div className="flex items-center space-x-2 mt-2">
+                                  <RadioGroupItem value="FIAT" id="response-fiat" />
+                                  <Label htmlFor="response-fiat" className="flex items-center gap-2 cursor-pointer">
+                                    <CreditCard className="h-4 w-4" />
+                                    Traditional Bank Transfer (100% EUR)
+                                  </Label>
+                                </div>
+                                <div className="flex items-center space-x-2 mt-2">
+                                  <RadioGroupItem value="CRYPTO" id="response-crypto" />
+                                  <Label htmlFor="response-crypto" className="flex items-center gap-2 cursor-pointer">
+                                    <Bitcoin className="h-4 w-4" />
+                                    Cryptocurrency (100%)
+                                  </Label>
+                                </div>
+                                <div className="flex items-center space-x-2 mt-2">
+                                  <RadioGroupItem value="HYBRID" id="response-hybrid" />
+                                  <Label htmlFor="response-hybrid" className="flex items-center gap-2 cursor-pointer">
+                                    <Euro className="h-4 w-4" />
+                                    Hybrid (Mix of Crypto + Fiat)
+                                  </Label>
+                                </div>
+                              </RadioGroup>
+                            </div>
+                            
+                            {responseForm.paymentMethod === 'HYBRID' && (
+                              <div>
+                                <Label>Payment Split</Label>
+                                <div className="space-y-3 mt-2">
+                                  <div>
+                                    <div className="flex justify-between text-sm mb-2">
+                                      <span className="flex items-center gap-1">
+                                        <Euro className="h-3 w-3" />
+                                        Fiat: {responseForm.fiatPercentage}%
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <Bitcoin className="h-3 w-3" />
+                                        Crypto: {responseForm.cryptoPercentage}%
+                                      </span>
+                                    </div>
+                                    <Slider
+                                      value={[responseForm.fiatPercentage]}
+                                      onValueChange={([value]) => {
+                                        setResponseForm(prev => ({
+                                          ...prev,
+                                          fiatPercentage: value,
+                                          cryptoPercentage: 100 - value
+                                        }))
+                                      }}
+                                      min={0}
+                                      max={100}
+                                      step={5}
+                                      className="w-full"
+                                    />
+                                    <div className="text-xs text-gray-600 mt-1">
+                                      Drag to adjust the payment split between fiat and cryptocurrency
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                         
                         <div>
@@ -706,7 +1025,15 @@ export default function TransactionDetailPage({ params }: PageProps) {
                           variant="outline" 
                           onClick={() => {
                             setIsResponseDialogOpen(false)
-                            setResponseForm({ action: '', counterPrice: '', message: '', terms: '' })
+                            setResponseForm({ 
+                              action: '', 
+                              counterPrice: '', 
+                              message: '', 
+                              terms: '',
+                              paymentMethod: 'FIAT',
+                              cryptoPercentage: 50,
+                              fiatPercentage: 50
+                            })
                             setError('')
                           }}
                         >
@@ -772,6 +1099,7 @@ export default function TransactionDetailPage({ params }: PageProps) {
                 </Button>
               </CardContent>
             </Card>
+            )}
 
             {/* Parties */}
             <Card>

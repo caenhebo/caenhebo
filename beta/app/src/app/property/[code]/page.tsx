@@ -109,6 +109,7 @@ export default function PropertyDetailPage({ params }: PageProps) {
   })
   const [propertyTransactions, setPropertyTransactions] = useState<PropertyTransaction[]>([])
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
+  const [buyerOffer, setBuyerOffer] = useState<PropertyTransaction | null>(null)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -123,6 +124,10 @@ export default function PropertyDetailPage({ params }: PageProps) {
   useEffect(() => {
     if (property && session?.user.role === 'SELLER' && property.sellerId === session.user.id) {
       fetchPropertyTransactions()
+    }
+    // Check if buyer has an existing offer
+    if (property && session?.user.role === 'BUYER') {
+      checkBuyerOffer()
     }
   }, [property, session])
 
@@ -188,6 +193,22 @@ export default function PropertyDetailPage({ params }: PageProps) {
       setError('Failed to express interest')
     } finally {
       setIsExpressingInterest(false)
+    }
+  }
+
+  const checkBuyerOffer = async () => {
+    if (!property) return
+    
+    try {
+      const response = await fetch(`/api/transactions?propertyId=${property.id}&role=buyer`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.transactions && data.transactions.length > 0) {
+          setBuyerOffer(data.transactions[0])
+        }
+      }
+    } catch (error) {
+      console.error('Error checking buyer offer:', error)
     }
   }
 
@@ -490,40 +511,68 @@ export default function PropertyDetailPage({ params }: PageProps) {
               <CardContent className="space-y-4">
                 {session.user.role === 'BUYER' && (
                   <>
-                    {!property.hasUserInterest ? (
-                      <Button
-                        className="w-full"
-                        onClick={handleExpressInterest}
-                        disabled={isExpressingInterest}
-                      >
-                        {isExpressingInterest ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Expressing Interest...
-                          </>
-                        ) : (
-                          <>
-                            <Heart className="mr-2 h-4 w-4" />
-                            Express Interest
-                          </>
-                        )}
-                      </Button>
+                    {/* Grandma-friendly: Show clear guidance if offer exists */}
+                    {buyerOffer ? (
+                      <div className="space-y-4">
+                        <div className="bg-yellow-50 border-4 border-yellow-300 rounded-xl p-6">
+                          <div className="flex items-center mb-3">
+                            <AlertCircle className="h-8 w-8 text-yellow-600 mr-3" />
+                            <h3 className="text-lg font-bold">You Already Made an Offer!</h3>
+                          </div>
+                          <p className="text-gray-700 mb-4">
+                            Your offer of <strong>{formatPrice(buyerOffer.offerPrice)}</strong> is waiting for the seller's response.
+                          </p>
+                          <div className="bg-white rounded-lg p-4 border-2 border-yellow-200">
+                            <p className="text-lg font-semibold mb-2">👉 What to do next:</p>
+                            <Button 
+                              className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700"
+                              onClick={() => router.push(`/transactions/${buyerOffer.id}`)}
+                            >
+                              <MessageSquare className="mr-2 h-6 w-6" />
+                              View Your Offer & Negotiate
+                            </Button>
+                          </div>
+                          <div className="text-sm text-gray-600 mt-3">
+                            Status: <Badge variant="secondary">{buyerOffer.status}</Badge>
+                          </div>
+                        </div>
+                      </div>
                     ) : (
-                      <Alert className="border-green-200 bg-green-50">
-                        <Heart className="h-4 w-4 text-green-600" />
-                        <AlertDescription className="text-green-800">
-                          You have expressed interest in this property
-                        </AlertDescription>
-                      </Alert>
-                    )}
+                      <>
+                        {!property.hasUserInterest ? (
+                          <Button
+                            className="w-full"
+                            onClick={handleExpressInterest}
+                            disabled={isExpressingInterest}
+                          >
+                            {isExpressingInterest ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Expressing Interest...
+                              </>
+                            ) : (
+                              <>
+                                <Heart className="mr-2 h-4 w-4" />
+                                Express Interest
+                              </>
+                            )}
+                          </Button>
+                        ) : (
+                          <Alert className="border-green-200 bg-green-50">
+                            <Heart className="h-4 w-4 text-green-600" />
+                            <AlertDescription className="text-green-800">
+                              You have expressed interest in this property
+                            </AlertDescription>
+                          </Alert>
+                        )}
 
-                    <Dialog open={isOfferDialogOpen} onOpenChange={setIsOfferDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" className="w-full">
-                          <DollarSign className="mr-2 h-4 w-4" />
-                          Make Offer
-                        </Button>
-                      </DialogTrigger>
+                        <Dialog open={isOfferDialogOpen} onOpenChange={setIsOfferDialogOpen}>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" className="w-full">
+                              <DollarSign className="mr-2 h-4 w-4" />
+                              Make Offer
+                            </Button>
+                          </DialogTrigger>
                       <DialogContent className="sm:max-w-lg">
                         <DialogHeader>
                           <DialogTitle>Make an Offer</DialogTitle>
@@ -703,6 +752,8 @@ export default function PropertyDetailPage({ params }: PageProps) {
                         </div>
                       </DialogContent>
                     </Dialog>
+                      </>
+                    )}
                   </>
                 )}
 

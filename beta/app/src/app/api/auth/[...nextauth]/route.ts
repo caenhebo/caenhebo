@@ -4,10 +4,10 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
-import { ensureAdminUser } from '@/lib/setup-admin'
+// import { ensureAdminUser } from '@/lib/setup-admin'
 
-// Ensure admin user exists on startup
-ensureAdminUser()
+// Admin user already exists in database
+// ensureAdminUser()
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
