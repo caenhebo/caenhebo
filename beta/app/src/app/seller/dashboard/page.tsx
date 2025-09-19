@@ -12,6 +12,7 @@ import { Home, FileText, Users, TrendingUp, Shield, Loader2, Building, CreditCar
 import WalletDisplay from '@/components/wallet/wallet-display'
 import { RefreshWalletsButton } from '@/components/wallet/refresh-wallets-button'
 import { BankAccountDisplay } from '@/components/banking/bank-account-display'
+import { StrigaIBANDisplay } from '@/components/banking/striga-iban-display'
 
 interface DashboardData {
   kycStatus: string
@@ -296,7 +297,7 @@ export default function SellerDashboard() {
                     Manage your bank accounts and wallets for receiving payments.
                   </p>
                   <div className="grid grid-cols-1 gap-3">
-                    <Button 
+                    <Button
                       variant="outline"
                       className="w-full justify-start"
                       onClick={() => window.location.href = '#banking-section'}
@@ -304,7 +305,15 @@ export default function SellerDashboard() {
                       <Building className="mr-2 h-4 w-4" />
                       View Banking Details
                     </Button>
-                    <Button 
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => window.location.href = '#iban-section'}
+                    >
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      View Payment Account
+                    </Button>
+                    <Button
                       variant="outline"
                       className="w-full justify-start"
                       onClick={() => window.location.href = '#wallet-section'}
@@ -356,7 +365,13 @@ export default function SellerDashboard() {
               />
             </div>
 
-            {/* Temporarily removed IBAN section due to error */}
+            {/* Striga IBAN Section */}
+            <div id="iban-section" className="mt-6">
+              <StrigaIBANDisplay
+                userRole="SELLER"
+                kycStatus={kycStatus}
+              />
+            </div>
 
             {/* Crypto Wallets Section */}
             <div id="wallet-section" className="mt-6">
