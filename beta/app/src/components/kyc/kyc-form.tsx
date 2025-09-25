@@ -5,10 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Shield, Info, AlertCircle } from 'lucide-react'
-import { countries } from '@/lib/countries'
+import { PhoneInput } from '@/components/ui/phone-input'
+import { CountrySelect } from '@/components/ui/country-select'
 import {
   Tooltip,
   TooltipContent,
@@ -26,8 +26,6 @@ export interface KycFormData {
   lastName: string
   email: string
   phoneNumber: string
-  phoneCountryCode?: string
-  phoneLocalNumber?: string
   dateOfBirth: string
   address: {
     addressLine1: string
@@ -44,33 +42,12 @@ export function KycForm({ onSubmit, initialData }: KycFormProps) {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   
-  // Parse initial phone number if provided
-  const parseInitialPhone = (phone: string | undefined) => {
-    if (!phone) return { countryCode: '+351', localNumber: '' }
-    
-    const europeanCodes = ['+351', '+34', '+33', '+49', '+39', '+31', '+32', '+43', '+45', '+46', '+47', '+48', '+30', '+353', '+352', '+354', '+356', '+357', '+358', '+359', '+370', '+371', '+372', '+385', '+386', '+420', '+421', '+423', '+36', '+40']
-    
-    for (const code of europeanCodes) {
-      if (phone.startsWith(code)) {
-        return {
-          countryCode: code,
-          localNumber: phone.substring(code.length).trim()
-        }
-      }
-    }
-    
-    return { countryCode: '+351', localNumber: phone }
-  }
-  
-  const initialPhone = parseInitialPhone(initialData?.phoneNumber)
   
   const [formData, setFormData] = useState<KycFormData>({
     firstName: initialData?.firstName || '',
     lastName: initialData?.lastName || '',
     email: initialData?.email || '',
     phoneNumber: initialData?.phoneNumber || '',
-    phoneCountryCode: initialPhone.countryCode,
-    phoneLocalNumber: initialPhone.localNumber,
     dateOfBirth: initialData?.dateOfBirth || '',
     address: {
       addressLine1: initialData?.address?.addressLine1 || '',
@@ -81,11 +58,6 @@ export function KycForm({ onSubmit, initialData }: KycFormProps) {
     }
   })
 
-  // Helper to update phone number when country code or local number changes
-  const updatePhoneNumber = (countryCode: string, localNumber: string) => {
-    const cleanLocal = localNumber.replace(/\D/g, '')
-    return countryCode + cleanLocal
-  }
 
   // Validate a single field
   const validateField = (fieldName: string, value: any): string => {
@@ -140,54 +112,54 @@ export function KycForm({ onSubmit, initialData }: KycFormProps) {
       errors.email = 'Email address is too long'
     }
     
-    // Validate phone number - must be European
+    // Validate phone number
     if (!data.phoneNumber.trim()) {
       errors.phoneNumber = 'Phone number is required'
     } else {
       const cleanPhone = data.phoneNumber.replace(/[\s()-]/g, '')
-      const europeanCodes = {
-        '+351': 'Portugal', '+34': 'Spain', '+33': 'France', '+49': 'Germany', 
-        '+39': 'Italy', '+31': 'Netherlands', '+32': 'Belgium', '+43': 'Austria',
-        '+45': 'Denmark', '+46': 'Sweden', '+47': 'Norway', '+48': 'Poland',
-        '+30': 'Greece', '+353': 'Ireland', '+352': 'Luxembourg', '+354': 'Iceland',
-        '+356': 'Malta', '+357': 'Cyprus', '+358': 'Finland', '+359': 'Bulgaria',
-        '+370': 'Lithuania', '+371': 'Latvia', '+372': 'Estonia', '+385': 'Croatia',
-        '+386': 'Slovenia', '+420': 'Czech Republic', '+421': 'Slovakia', 
-        '+423': 'Liechtenstein', '+36': 'Hungary', '+40': 'Romania'
+
+      // Blocked countries
+      const blockedCodes = {
+        '+7': 'Russia',
+        '+86': 'China',
+        '+98': 'Iran',
+        '+249': 'Sudan',
+        '+850': 'North Korea'
       }
-      
-      let foundCountry = ''
-      let countryCode = ''
-      for (const [code, country] of Object.entries(europeanCodes)) {
+
+      // Check if using a blocked country code
+      let isBlocked = false
+      let blockedCountry = ''
+      for (const [code, country] of Object.entries(blockedCodes)) {
         if (cleanPhone.startsWith(code)) {
-          foundCountry = country
-          countryCode = code
+          isBlocked = true
+          blockedCountry = country
           break
         }
       }
-      
-      if (!foundCountry) {
-        if (cleanPhone.startsWith('+1')) {
-          errors.phoneNumber = 'US/Canada numbers are not supported. Please use a European phone number'
-        } else if (cleanPhone.startsWith('+44')) {
-          errors.phoneNumber = 'UK numbers are not supported. Please use an EU/EEA phone number'
-        } else if (!cleanPhone.startsWith('+')) {
-          errors.phoneNumber = 'Phone number must include country code (e.g., +351 for Portugal)'
-        } else {
-          errors.phoneNumber = 'Only European phone numbers are supported. Please use an EU/EEA number'
-        }
+
+      if (isBlocked) {
+        errors.phoneNumber = `${blockedCountry} phone numbers are not supported due to regulatory restrictions`
+      } else if (!cleanPhone.startsWith('+')) {
+        errors.phoneNumber = 'Phone number must include country code (e.g., +351 for Portugal)'
       } else {
-        // Extract the number part after country code
-        const number = cleanPhone.substring(countryCode.length)
-        
-        if (number.length === 0) {
-          errors.phoneNumber = `Please enter the phone number after the country code`
-        } else if (!/^\d+$/.test(number)) {
-          errors.phoneNumber = 'Phone number can only contain digits after the country code'
-        } else if (number.length < 6) {
-          errors.phoneNumber = `Phone number too short. ${foundCountry} numbers should be at least 6 digits`
-        } else if (number.length > 15) {
-          errors.phoneNumber = `Phone number too long. Maximum 15 digits allowed`
+        // Extract country code (between 1-4 digits after +)
+        const match = cleanPhone.match(/^\+(\d{1,4})/)
+        if (match) {
+          const countryCodeLength = match[1].length
+          const number = cleanPhone.substring(countryCodeLength + 1)
+
+          if (number.length === 0) {
+            errors.phoneNumber = `Please enter the phone number after the country code`
+          } else if (!/^\d+$/.test(number)) {
+            errors.phoneNumber = 'Phone number can only contain digits after the country code'
+          } else if (number.length < 4) {
+            errors.phoneNumber = `Phone number too short. Should be at least 4 digits`
+          } else if (number.length > 15) {
+            errors.phoneNumber = `Phone number too long. Maximum 15 digits allowed`
+          }
+        } else {
+          errors.phoneNumber = 'Invalid phone number format'
         }
       }
     }
@@ -361,19 +333,15 @@ export function KycForm({ onSubmit, initialData }: KycFormProps) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="text-amber-600 font-semibold cursor-help inline-flex items-center gap-1">
-                  Only European residents are supported
+                  Worldwide support (with restrictions)
                   <Info className="h-3 w-3" />
                 </span>
               </TooltipTrigger>
               <TooltipContent className="max-w-sm">
-                <p className="font-semibold mb-2">Supported Countries:</p>
-                <div className="grid grid-cols-2 gap-1 text-sm">
-                  <div>Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France</div>
-                  <div>Germany, Greece, Hungary, Iceland, Ireland, Italy, Latvia, Liechtenstein, Lithuania, Luxembourg</div>
-                  <div>Malta, Netherlands, Norway, Poland, Portugal</div>
-                  <div>Romania, Slovakia, Slovenia, Spain, Sweden</div>
-                </div>
-                <p className="mt-2 text-amber-600">UK, US, and non-EU countries are NOT supported.</p>
+                <p className="font-semibold mb-2">Restricted Countries:</p>
+                <p className="text-sm">Due to regulatory requirements, we cannot provide services to residents of:</p>
+                <p className="text-sm font-medium text-red-600 mt-1">Russia, China, Iran, Sudan, North Korea</p>
+                <p className="text-sm mt-2">All other countries are supported for address registration.</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -474,109 +442,30 @@ export function KycForm({ onSubmit, initialData }: KycFormProps) {
           </div>
 
           <div>
-            <Label>Phone Number</Label>
-            <div className="flex gap-4">
-              <div className="w-36">
-                <Label htmlFor="phoneCountryCode" className="text-xs text-gray-500">Country Code</Label>
-                <Select
-                  value={formData.phoneCountryCode}
-                  onValueChange={(value) => {
-                    const newPhone = updatePhoneNumber(value, formData.phoneLocalNumber || '')
-                    setFormData({ 
-                      ...formData, 
-                      phoneCountryCode: value,
-                      phoneNumber: newPhone
-                    })
-                    // Clear error on change
-                    if (validationErrors.phoneNumber) {
-                      setValidationErrors({ ...validationErrors, phoneNumber: '' })
-                    }
-                    // Mark as touched and validate
-                    setTouchedFields({ ...touchedFields, phoneNumber: true })
-                    const error = validateField('phoneNumber', newPhone)
-                    if (error) {
-                      setValidationErrors({ ...validationErrors, phoneNumber: error })
-                    }
-                  }}
-                  disabled={loading}
-                >
-                  <SelectTrigger 
-                    id="phoneCountryCode"
-                    className={validationErrors.phoneNumber && touchedFields.phoneNumber ? 'border-red-500' : ''}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="+351">🇵🇹 +351 (Portugal)</SelectItem>
-                    <SelectItem value="+34">🇪🇸 +34 (Spain)</SelectItem>
-                    <SelectItem value="+33">🇫🇷 +33 (France)</SelectItem>
-                    <SelectItem value="+49">🇩🇪 +49 (Germany)</SelectItem>
-                    <SelectItem value="+39">🇮🇹 +39 (Italy)</SelectItem>
-                    <SelectItem value="+31">🇳🇱 +31 (Netherlands)</SelectItem>
-                    <SelectItem value="+32">🇧🇪 +32 (Belgium)</SelectItem>
-                    <SelectItem value="+43">🇦🇹 +43 (Austria)</SelectItem>
-                    <SelectItem value="+45">🇩🇰 +45 (Denmark)</SelectItem>
-                    <SelectItem value="+46">🇸🇪 +46 (Sweden)</SelectItem>
-                    <SelectItem value="+47">🇳🇴 +47 (Norway)</SelectItem>
-                    <SelectItem value="+48">🇵🇱 +48 (Poland)</SelectItem>
-                    <SelectItem value="+30">🇬🇷 +30 (Greece)</SelectItem>
-                    <SelectItem value="+353">🇮🇪 +353 (Ireland)</SelectItem>
-                    <SelectItem value="+352">🇱🇺 +352 (Luxembourg)</SelectItem>
-                    <SelectItem value="+354">🇮🇸 +354 (Iceland)</SelectItem>
-                    <SelectItem value="+356">🇲🇹 +356 (Malta)</SelectItem>
-                    <SelectItem value="+357">🇨🇾 +357 (Cyprus)</SelectItem>
-                    <SelectItem value="+358">🇫🇮 +358 (Finland)</SelectItem>
-                    <SelectItem value="+359">🇧🇬 +359 (Bulgaria)</SelectItem>
-                    <SelectItem value="+370">🇱🇹 +370 (Lithuania)</SelectItem>
-                    <SelectItem value="+371">🇱🇻 +371 (Latvia)</SelectItem>
-                    <SelectItem value="+372">🇪🇪 +372 (Estonia)</SelectItem>
-                    <SelectItem value="+385">🇭🇷 +385 (Croatia)</SelectItem>
-                    <SelectItem value="+386">🇸🇮 +386 (Slovenia)</SelectItem>
-                    <SelectItem value="+420">🇨🇿 +420 (Czech Republic)</SelectItem>
-                    <SelectItem value="+421">🇸🇰 +421 (Slovakia)</SelectItem>
-                    <SelectItem value="+423">🇱🇮 +423 (Liechtenstein)</SelectItem>
-                    <SelectItem value="+36">🇭🇺 +36 (Hungary)</SelectItem>
-                    <SelectItem value="+40">🇷🇴 +40 (Romania)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex-1">
-                <Label htmlFor="phoneLocalNumber" className="text-xs text-gray-500">Phone Number</Label>
-                <Input
-                  id="phoneLocalNumber"
-                  type="tel"
-                  required
-                  placeholder="900000000"
-                  value={formData.phoneLocalNumber}
-                  onChange={(e) => {
-                    // Only allow digits
-                    const value = e.target.value.replace(/\D/g, '')
-                    const newPhone = updatePhoneNumber(formData.phoneCountryCode || '+351', value)
-                    setFormData({ 
-                      ...formData, 
-                      phoneLocalNumber: value,
-                      phoneNumber: newPhone
-                    })
-                    if (validationErrors.phoneNumber) {
-                      setValidationErrors({ ...validationErrors, phoneNumber: '' })
-                    }
-                  }}
-                  onBlur={() => {
-                    setTouchedFields({ ...touchedFields, phoneNumber: true })
-                    const error = validateField('phoneNumber', formData.phoneNumber)
-                    if (error) {
-                      setValidationErrors({ ...validationErrors, phoneNumber: error })
-                    }
-                  }}
-                  disabled={loading}
-                  className={validationErrors.phoneNumber && touchedFields.phoneNumber ? 'border-red-500' : ''}
-                />
-              </div>
-            </div>
+            <Label htmlFor="phoneNumber">Phone Number</Label>
+            <PhoneInput
+              value={formData.phoneNumber}
+              onChange={(value) => {
+                setFormData({ ...formData, phoneNumber: value })
+                if (validationErrors.phoneNumber) {
+                  setValidationErrors({ ...validationErrors, phoneNumber: '' })
+                }
+              }}
+              onBlur={() => {
+                setTouchedFields({ ...touchedFields, phoneNumber: true })
+                const error = validateField('phoneNumber', formData.phoneNumber)
+                if (error) {
+                  setValidationErrors({ ...validationErrors, phoneNumber: error })
+                }
+              }}
+              disabled={loading}
+              required
+              error={validationErrors.phoneNumber && touchedFields.phoneNumber ? validationErrors.phoneNumber : undefined}
+            />
             {validationErrors.phoneNumber && touchedFields.phoneNumber && (
               <p className="text-red-500 text-sm mt-1">{validationErrors.phoneNumber}</p>
             )}
-            <p className="text-gray-500 text-xs mt-1">Only European phone numbers are supported</p>
+            <p className="text-gray-500 text-xs mt-1">International phone numbers supported (excluding Russia, China, Iran, Sudan, North Korea)</p>
           </div>
 
           <div>
@@ -613,9 +502,9 @@ export function KycForm({ onSubmit, initialData }: KycFormProps) {
             
             <div>
               <Label htmlFor="country">Country</Label>
-              <Select
+              <CountrySelect
                 value={formData.address.country}
-                onValueChange={(value) => {
+                onChange={(value) => {
                   setFormData({
                     ...formData,
                     address: { ...formData.address, country: value }
@@ -631,18 +520,9 @@ export function KycForm({ onSubmit, initialData }: KycFormProps) {
                   }
                 }}
                 disabled={loading}
-              >
-                <SelectTrigger id="country">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {countries.map((country) => (
-                    <SelectItem key={country.code} value={country.code}>
-                      {country.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Select your country"
+              />
+              <p className="text-gray-500 text-xs mt-1">Select the country where you currently reside</p>
             </div>
 
             <div>

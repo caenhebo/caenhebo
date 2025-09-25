@@ -27,6 +27,7 @@ export default function BuyerDashboard() {
   // Payment preference removed - now handled per offer
   const [liveKycStatus, setLiveKycStatus] = useState<string | null>(null)
   const [kyc2Status, setKyc2Status] = useState<string | null>(null)
+  const [mediationSigned, setMediationSigned] = useState<boolean>(false)
   const [isCheckingKyc, setIsCheckingKyc] = useState(false)
   const [walletData, setWalletData] = useState<any>(null)
   const [isLoadingWallets, setIsLoadingWallets] = useState(false)
@@ -49,20 +50,26 @@ export default function BuyerDashboard() {
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
-      // Use KYC status from session
+      // Use KYC status from session (which comes fresh from database)
       setLiveKycStatus(session.user.kycStatus || null)
       setKyc2Status(session.user.kyc2Status || 'PENDING')
       fetchTransactionStats()
+      fetchMediationStatus()
+
+      // No auto-sync needed - session already has fresh data from database
+      // Only sync manually when user requests it
     }
   }, [session, status])
 
   useEffect(() => {
     if (liveKycStatus === 'PASSED') {
-      fetchWallets()
-      fetchBankAccount()
       fetchPropertyInterestsCount()
     }
-  }, [liveKycStatus])
+    if (kyc2Status === 'PASSED') {
+      fetchWallets()
+      fetchBankAccount()
+    }
+  }, [liveKycStatus, kyc2Status])
 
   // Removed fetchLiveKycStatus - now using session KYC status directly
 
@@ -127,6 +134,49 @@ export default function BuyerDashboard() {
       }
     } catch (error) {
       console.error('Error fetching property interests:', error)
+    }
+  }
+
+  const fetchMediationStatus = async () => {
+    try {
+      const response = await fetch('/api/user/sign-mediation')
+      if (response.ok) {
+        const data = await response.json()
+        setMediationSigned(data.signed || false)
+      }
+    } catch (error) {
+      console.error('Error fetching mediation status:', error)
+    }
+  }
+
+  const syncKyc2Status = async () => {
+    try {
+      console.log('Syncing KYC2 status with Striga...')
+      const response = await fetch('/api/kyc2/sync', {
+        method: 'POST'
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('KYC2 sync response:', data)
+
+        // Update local state if status changed
+        if (data.currentStatus && data.currentStatus !== kyc2Status) {
+          setKyc2Status(data.currentStatus)
+
+          // If KYC2 just got approved, refresh data (not reload page)
+          if (data.currentStatus === 'PASSED') {
+            // Refresh transaction stats and other data
+            fetchTransactionStats()
+            fetchPropertyInterestsCount()
+            if (!mediationSigned) {
+              fetchMediationStatus()
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing KYC2 status:', error)
     }
   }
 
@@ -222,6 +272,59 @@ export default function BuyerDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Mediation Agreement Section - Show if KYC2 is completed but mediation not signed */}
+        {kyc2Status === 'PASSED' && !mediationSigned && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <FileText className="h-6 w-6 text-yellow-600" />
+                <div>
+                  <h3 className="font-semibold text-gray-900">
+                    Mediation Agreement Required
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    <span className="text-yellow-700 font-medium">
+                      ⚠️ You need to sign the mediation agreement to make offers on properties
+                    </span>
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    This agreement ensures fair dispute resolution for all property transactions
+                  </p>
+                </div>
+              </div>
+              <div>
+                <Button
+                  onClick={() => router.push('/mediation-agreement')}
+                  className="bg-yellow-600 hover:bg-yellow-700"
+                  size="lg"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Sign Mediation Agreement
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Success message if everything is completed */}
+        {kyc2Status === 'PASSED' && mediationSigned && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center space-x-4">
+              <Shield className="h-6 w-6 text-green-600" />
+              <div>
+                <h3 className="font-semibold text-gray-900">
+                  Ready to Make Offers
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  <span className="text-green-600 font-medium">
+                    ✅ All requirements completed - You can now make offers on properties
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {kycError && (
           <Alert variant="destructive" className="mb-6">
@@ -354,13 +457,13 @@ export default function BuyerDashboard() {
             </CardContent>
           </Card>
 
-          <Card className={liveKycStatus !== 'PASSED' ? 'opacity-60' : ''}>
+          <Card className={kyc2Status !== 'PASSED' ? 'opacity-60' : ''}>
             <CardHeader>
               <CardTitle>Financial Accounts</CardTitle>
               <CardDescription>Manage your payment accounts</CardDescription>
             </CardHeader>
             <CardContent>
-              {liveKycStatus === 'PASSED' ? (
+              {kyc2Status === 'PASSED' ? (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-600">
                     Manage your bank accounts and wallets. Payment method can be selected when making an offer.
@@ -399,22 +502,35 @@ export default function BuyerDashboard() {
                     <span className="text-sm text-gray-500">KYC Required</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">KYC Status:</span>
+                    <span className="text-sm font-medium">KYC Tier 1:</span>
                     <span className={`text-sm ${
-                      liveKycStatus === 'PASSED' ? 'text-green-600 font-medium' : 
-                      liveKycStatus === 'REJECTED' ? 'text-red-600' : 
+                      liveKycStatus === 'PASSED' ? 'text-green-600 font-medium' :
+                      liveKycStatus === 'REJECTED' ? 'text-red-600' :
                       'text-amber-600'
                     }`}>
-                      {liveKycStatus === 'PASSED' ? 'Approved' : 
-                       liveKycStatus === 'REJECTED' ? 'Rejected' : 
-                       liveKycStatus === 'INITIATED' ? 'In Review' : 
+                      {liveKycStatus === 'PASSED' ? 'Approved' :
+                       liveKycStatus === 'REJECTED' ? 'Rejected' :
+                       liveKycStatus === 'INITIATED' ? 'In Review' :
                        'Pending'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">KYC Tier 2:</span>
+                    <span className={`text-sm ${
+                      kyc2Status === 'PASSED' ? 'text-green-600 font-medium' :
+                      kyc2Status === 'REJECTED' ? 'text-red-600' :
+                      'text-amber-600'
+                    }`}>
+                      {kyc2Status === 'PASSED' ? 'Approved' :
+                       kyc2Status === 'REJECTED' ? 'Rejected' :
+                       kyc2Status === 'INITIATED' ? 'In Review' :
+                       'Required'}
                     </span>
                   </div>
                   <Alert>
                     <Shield className="h-4 w-4" />
                     <AlertDescription>
-                      Complete KYC verification to access your financial accounts.
+                      Complete KYC Tier 2 verification to access your financial accounts.
                     </AlertDescription>
                   </Alert>
                 </div>
@@ -467,8 +583,8 @@ export default function BuyerDashboard() {
           )}
         </div>
 
-        {/* Banking & Payment Sections - Only show when KYC is passed */}
-        {liveKycStatus === 'PASSED' && (
+        {/* Banking & Payment Sections - Only show when KYC2 is passed */}
+        {kyc2Status === 'PASSED' && (
           <>
             {/* Personal Bank Account Section */}
             <div id="banking-section" className="mt-6">
