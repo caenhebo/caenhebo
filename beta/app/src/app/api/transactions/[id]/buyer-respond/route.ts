@@ -78,11 +78,15 @@ export async function POST(
 
     if (action === 'accept') {
       // Accept the seller's counter-offer
+      // Get the advance payment percentage from the counter offer
+      const acceptedAdvancePayment = lastCounterOffer.advancePaymentPercentage || 0
+
       updatedTransaction = await prisma.transaction.update({
         where: { id: transactionId },
         data: {
           status: 'AGREEMENT',
           agreedPrice: lastCounterOffer.price,
+          advancePaymentPercentage: acceptedAdvancePayment,
           acceptanceDate: new Date()
         },
         include: {

@@ -7,8 +7,7 @@ import { prisma } from '@/lib/prisma'
 const STAGE_PROGRESSIONS: { [key: string]: string } = {
   'OFFER': 'NEGOTIATION',
   'NEGOTIATION': 'AGREEMENT',
-  'AGREEMENT': 'KYC2_VERIFICATION',
-  'KYC2_VERIFICATION': 'FUND_PROTECTION',
+  'AGREEMENT': 'FUND_PROTECTION',  // Skip KYC2 - it's done before transactions
   'FUND_PROTECTION': 'CLOSING',
   'CLOSING': 'COMPLETED'
 }
@@ -78,26 +77,16 @@ export async function POST(
       )
     }
 
-    if (nextStatus === 'KYC2_VERIFICATION') {
-      // Check promissory signatures first (Step 1)
+    if (nextStatus === 'FUND_PROTECTION') {
+      // Check promissory/agreement signatures
       if (!transaction.buyerSignedPromissory || !transaction.sellerSignedPromissory) {
         return NextResponse.json(
-          { error: 'Both buyer and seller must sign the Promissory Purchase & Sale Agreement to advance to KYC Tier 2 Verification' },
+          { error: 'Both buyer and seller must sign the agreement to advance to Fund Protection' },
           { status: 400 }
         )
       }
 
-      // Check mediation agreement signatures (Step 2)
-      if (!transaction.buyerSignedMediation || !transaction.sellerSignedMediation) {
-        return NextResponse.json(
-          { error: 'Both buyer and seller must sign the Mediation Agreement to advance to KYC Tier 2 Verification' },
-          { status: 400 }
-        )
-      }
-    }
-
-    if (nextStatus === 'FUND_PROTECTION') {
-      // Check that both parties have completed KYC Tier 2
+      // Check that both parties have KYC2 (pre-requirement)
       const transactionWithKyc = await prisma.transaction.findUnique({
         where: { id: transactionId },
         include: {
@@ -106,9 +95,10 @@ export async function POST(
         }
       })
 
-      if (!transactionWithKyc!.buyerKyc2Verified || !transactionWithKyc!.sellerKyc2Verified) {
+      if (transactionWithKyc!.buyer.kyc2Status !== 'PASSED' ||
+          transactionWithKyc!.seller.kyc2Status !== 'PASSED') {
         return NextResponse.json(
-          { error: 'Both buyer and seller must complete KYC Tier 2 verification to advance to Fund Protection' },
+          { error: 'Both buyer and seller must have KYC Tier 2 approved to advance to Fund Protection' },
           { status: 400 }
         )
       }
@@ -131,7 +121,6 @@ export async function POST(
         where: { id: transactionId },
         data: {
           status: nextStatus as any,
-          ...(nextStatus === 'KYC2_VERIFICATION' && { kyc2StartedAt: new Date() }),
           ...(nextStatus === 'FUND_PROTECTION' && { fundProtectionDate: new Date() }),
           ...(nextStatus === 'COMPLETED' && { completionDate: new Date() })
         },

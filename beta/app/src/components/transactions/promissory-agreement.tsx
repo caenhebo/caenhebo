@@ -34,6 +34,7 @@ interface PromissoryAgreementProps {
   agreedPrice: string
   propertyTitle: string
   propertyCode: string
+  advancePaymentPercentage?: number
   onComplete?: () => void
 }
 
@@ -45,7 +46,7 @@ const formatPrice = (price: number | string) => {
   }).format(numPrice)
 }
 
-export default function PromissoryAgreement({ 
+export default function PromissoryAgreement({
   transactionId,
   userRole,
   buyerSigned,
@@ -53,6 +54,7 @@ export default function PromissoryAgreement({
   agreedPrice,
   propertyTitle,
   propertyCode,
+  advancePaymentPercentage = 0,
   onComplete
 }: PromissoryAgreementProps) {
   const [loading, setLoading] = useState(false)
@@ -71,6 +73,13 @@ export default function PromissoryAgreement({
   const hasSigned = userRole === 'buyer' ? localBuyerSigned : localSellerSigned
   const otherPartySigned = userRole === 'buyer' ? localSellerSigned : localBuyerSigned
   const bothSigned = localBuyerSigned && localSellerSigned
+
+  // Determine document type based on advance payment
+  const isPromissoryNote = advancePaymentPercentage > 0
+  const documentType = isPromissoryNote ? 'Promissory Note' : 'Purchase & Sale Agreement'
+  const documentDescription = isPromissoryNote
+    ? `Promissory note confirming advance payment of ${advancePaymentPercentage}% for ${propertyTitle}`
+    : `Legal agreement confirming the terms of sale for ${propertyTitle}`
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -170,7 +179,7 @@ export default function PromissoryAgreement({
 
       // Check if both parties have now signed
       if (data.bothSigned) {
-        setSuccess('🎉 Both parties have signed! Moving to the next stage...')
+        setSuccess(`🎉 Both parties have signed the ${documentType}! Moving to the next stage...`)
         setTransitioning(true)
 
         // Trigger completion callback with shorter delay
@@ -199,10 +208,10 @@ export default function PromissoryAgreement({
         <CardHeader className="bg-green-50">
           <CardTitle className="text-xl flex items-center">
             <CheckCircle className="mr-3 h-6 w-6 text-green-600" />
-            Promissory Agreement Signed
+            {documentType} Signed
           </CardTitle>
           <CardDescription>
-            Both parties have signed the Promissory Purchase & Sale Agreement
+            Both parties have signed the {documentType}
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
@@ -233,10 +242,10 @@ export default function PromissoryAgreement({
       <CardHeader className="bg-blue-50">
         <CardTitle className="text-xl flex items-center">
           <FileText className="mr-3 h-6 w-6 text-blue-600" />
-          Promissory Purchase & Sale Agreement
+          {documentType}
         </CardTitle>
         <CardDescription>
-          Legal agreement confirming the terms of sale for {propertyTitle}
+          {documentDescription}
         </CardDescription>
       </CardHeader>
 
@@ -276,6 +285,22 @@ export default function PromissoryAgreement({
                 <span className="text-gray-600">Agreed Purchase Price:</span>
                 <span className="font-bold text-lg">€{agreedPrice}</span>
               </div>
+              {isPromissoryNote && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Advance Payment:</span>
+                    <span className="font-bold text-lg text-blue-600">
+                      {advancePaymentPercentage}% (€{(parseFloat(agreedPrice) * advancePaymentPercentage / 100).toFixed(2)})
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Remaining at Closing:</span>
+                    <span className="font-medium">
+                      {100 - advancePaymentPercentage}% (€{(parseFloat(agreedPrice) * (100 - advancePaymentPercentage) / 100).toFixed(2)})
+                    </span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between">
                 <span className="text-gray-600">Buyer Status:</span>
                 <span className={buyerSigned ? "text-green-600 font-medium" : "text-gray-500"}>
@@ -386,7 +411,7 @@ export default function PromissoryAgreement({
                   <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
                   <div className="text-sm text-yellow-800">
                     By signing this agreement, you confirm that you have read, understood, and agree to all terms 
-                    and conditions outlined in the Promissory Purchase & Sale Agreement.
+                    and conditions outlined in the {documentType}.
                   </div>
                 </div>
               </div>
@@ -401,7 +426,7 @@ export default function PromissoryAgreement({
                   htmlFor="agree" 
                   className="text-sm leading-relaxed cursor-pointer"
                 >
-                  I have read and agree to the terms and conditions of the Promissory Purchase & Sale Agreement. 
+                  I have read and agree to the terms and conditions of the {documentType}. 
                   I understand this is a legally binding document.
                 </label>
               </div>
@@ -420,7 +445,7 @@ export default function PromissoryAgreement({
                 ) : (
                   <>
                     <Signature className="mr-2 h-5 w-5" />
-                    Sign Promissory Agreement as {userRole === 'buyer' ? 'Buyer' : 'Seller'}
+                    Sign {documentType} as {userRole === 'buyer' ? 'Buyer' : 'Seller'}
                   </>
                 )}
               </Button>

@@ -70,15 +70,21 @@ export async function POST(
 
     if (action === 'accept') {
       // Accept the current offer
-      const currentPrice = transaction.counterOffers.length > 0 
-        ? transaction.counterOffers[0].price 
+      const currentPrice = transaction.counterOffers.length > 0
+        ? transaction.counterOffers[0].price
         : transaction.offerPrice
+
+      // Get the advance payment percentage from the last offer
+      const currentAdvancePayment = transaction.counterOffers.length > 0
+        ? (transaction.counterOffers[0].advancePaymentPercentage || 0)
+        : (transaction.advancePaymentPercentage || 0)
 
       updatedTransaction = await prisma.transaction.update({
         where: { id: transactionId },
         data: {
           status: 'AGREEMENT',
           agreedPrice: currentPrice,
+          advancePaymentPercentage: currentAdvancePayment,
           acceptanceDate: new Date()
         },
         include: {
