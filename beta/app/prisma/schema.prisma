@@ -31,6 +31,8 @@ model User {
   kyc2Status            KycStatus          @default(PENDING)
   kyc2SessionId         String?
   kyc2CompletedAt       DateTime?
+  mediationAgreementSigned Boolean        @default(false)
+  mediationAgreementSignedAt DateTime?
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   bankAccount           BankAccount?
@@ -38,6 +40,7 @@ model User {
   documentAccessGranted DocumentAccess[]   @relation("BuyerDocumentAccess")
   documentAccessGiven   DocumentAccess[]   @relation("GrantorDocumentAccess")
   documents             Document[]
+  reviewedDocuments     Document[]         @relation("DocumentReviewer")
   notifications         Notification[]
   profile               Profile?
   sellerProperties      Property[]         @relation("SellerProperties")
@@ -232,11 +235,16 @@ model Document {
   signedAt      DateTime?
   signedBy      String?
   signature     String?
+  adminComment  String?
+  adminApprovalStatus ComplianceStatus? @default(PENDING)
+  adminReviewedAt DateTime?
+  adminReviewedBy String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   property      Property?    @relation(fields: [propertyId], references: [id])
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
   user          User?        @relation(fields: [userId], references: [id])
+  reviewer      User?        @relation("DocumentReviewer", fields: [adminReviewedBy], references: [id])
 
   @@map("documents")
 }
@@ -498,6 +506,7 @@ enum DocumentType {
   CONTRACT
   PROOF_OF_PAYMENT
   LEGAL_DOCUMENT
+  PERSONAL_ID
 }
 
 enum NotificationType {

@@ -12,13 +12,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { 
-  MapPin, 
-  Euro, 
-  Calendar, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+import {
+  MapPin,
+  Euro,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  Clock,
   Loader2,
   Download,
   FileText,
@@ -34,6 +34,8 @@ import {
   Home,
   CheckSquare
 } from 'lucide-react'
+import { categorizeDocuments, getDocumentTypeLabel } from '@/lib/document-utils'
+import { DocumentApprovalCard } from '@/components/admin/document-approval-card'
 
 interface Document {
   id: string
@@ -44,6 +46,9 @@ interface Document {
   documentType: string
   uploadedAt: string
   verified: boolean
+  adminApprovalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED'
+  adminComment?: string
+  adminReviewedAt?: string
 }
 
 interface Property {
@@ -262,20 +267,8 @@ export default function AdminPropertyDetails() {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
   }
 
-  const getDocumentTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      COMPLIANCE_DECLARATION: '📋 Compliance Declaration',
-      ENERGY_CERTIFICATE: '🏡 Energy Certificate',
-      USAGE_LICENSE: '📜 Usage License',
-      LAND_REGISTRY: '🏛 Land Registry Certificate',
-      TAX_REGISTER: '📄 Tax Register',
-      FLOOR_PLAN: '📐 Floor Plan',
-      TITLE_DEED: '📑 Title Deed',
-      PHOTO: '📷 Photo',
-      OTHER: '📎 Other'
-    }
-    return labels[type] || type
-  }
+  // Categorize documents into personal and property
+  const categorizedDocs = property ? categorizeDocuments(property.documents) : { personal: [], property: [] }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -311,7 +304,7 @@ export default function AdminPropertyDetails() {
   // Determine default tab based on current stage
   const getDefaultTab = () => {
     switch (currentStep) {
-      case 0: return 'documents' // Waiting for documents
+      case 0: return 'details' // Waiting for documents
       case 1: return 'compliance' // In compliance review
       case 2: return 'interview' // Interview stage
       case 3: return 'compliance' // Final approval (shown in compliance tab)
@@ -493,147 +486,164 @@ export default function AdminPropertyDetails() {
         </Card>
 
         <Tabs defaultValue={getDefaultTab()} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="details">Property Details</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
             <TabsTrigger value="seller">Seller Info</TabsTrigger>
             <TabsTrigger value="compliance">Compliance</TabsTrigger>
             <TabsTrigger value="interview">Interview</TabsTrigger>
           </TabsList>
 
           <TabsContent value="details">
-            <Card>
-              <CardHeader>
-                <CardTitle>Property Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Address</Label>
-                    <div className="mt-1">
-                      <p className="font-medium">{property.address}</p>
-                      <p className="text-gray-600">{property.city}, {property.postalCode}</p>
-                      <p className="text-gray-600">{property.country}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Price</Label>
-                    <p className="mt-1 text-2xl font-bold">€{parseInt(property.price).toLocaleString()}</p>
-                    {property.valuationPrice && (
-                      <p className="text-sm text-gray-600">Valuation: €{parseInt(property.valuationPrice).toLocaleString()}</p>
-                    )}
-                  </div>
-                </div>
-                
-                {property.description && (
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Description</Label>
-                    <p className="mt-1">{property.description}</p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-4 gap-4">
-                  {property.area && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Property Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <Label className="text-sm font-medium text-gray-600">Area</Label>
-                      <p className="mt-1">{property.area} m²</p>
-                    </div>
-                  )}
-                  {property.bedrooms && (
-                    <div>
-                      <Label className="text-sm font-medium text-gray-600">Bedrooms</Label>
-                      <p className="mt-1">{property.bedrooms}</p>
-                    </div>
-                  )}
-                  {property.bathrooms && (
-                    <div>
-                      <Label className="text-sm font-medium text-gray-600">Bathrooms</Label>
-                      <p className="mt-1">{property.bathrooms}</p>
-                    </div>
-                  )}
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Listed</Label>
-                    <p className="mt-1">{new Date(property.createdAt).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="documents">
-            <Card>
-              <CardHeader>
-                <CardTitle>Uploaded Documents ({property.documents.length})</CardTitle>
-                <CardDescription>Review and download property documents</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {property.documents.length > 0 ? (
-                  <div className="space-y-3">
-                    {property.documents.map((doc) => (
-                      <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                        <div className="flex items-center space-x-3">
-                          <FileText className="h-8 w-8 text-blue-500" />
-                          <div>
-                            <p className="font-medium">{getDocumentTypeLabel(doc.documentType)}</p>
-                            <p className="text-sm text-gray-600">
-                              {doc.filename} • {formatFileSize(doc.fileSize)} • {new Date(doc.uploadedAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.location.href = `/api/documents/${doc.id}/download`}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </Button>
+                      <Label className="text-sm font-medium text-gray-600">Address</Label>
+                      <div className="mt-1">
+                        <p className="font-medium">{property.address}</p>
+                        <p className="text-gray-600">{property.city}, {property.postalCode}</p>
+                        <p className="text-gray-600">{property.country}</p>
                       </div>
-                    ))}
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Price</Label>
+                      <p className="mt-1 text-2xl font-bold">€{parseInt(property.price).toLocaleString()}</p>
+                      {property.valuationPrice && (
+                        <p className="text-sm text-gray-600">Valuation: €{parseInt(property.valuationPrice).toLocaleString()}</p>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-500">No documents uploaded yet</p>
+
+                  {property.description && (
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Description</Label>
+                      <p className="mt-1">{property.description}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-4 gap-4">
+                    {property.area && (
+                      <div>
+                        <Label className="text-sm font-medium text-gray-600">Area</Label>
+                        <p className="mt-1">{property.area} m²</p>
+                      </div>
+                    )}
+                    {property.bedrooms && (
+                      <div>
+                        <Label className="text-sm font-medium text-gray-600">Bedrooms</Label>
+                        <p className="mt-1">{property.bedrooms}</p>
+                      </div>
+                    )}
+                    {property.bathrooms && (
+                      <div>
+                        <Label className="text-sm font-medium text-gray-600">Bathrooms</Label>
+                        <p className="mt-1">{property.bathrooms}</p>
+                      </div>
+                    )}
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Listed</Label>
+                      <p className="mt-1">{new Date(property.createdAt).toLocaleDateString()}</p>
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              {/* Property Documents Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Property Documents ({categorizedDocs.property.length})</CardTitle>
+                  <CardDescription>Documents related to the property</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {categorizedDocs.property.length > 0 ? (
+                    <div className="space-y-3">
+                      {categorizedDocs.property.map((doc) => (
+                        <DocumentApprovalCard
+                          key={doc.id}
+                          document={doc}
+                          documentLabel={getDocumentTypeLabel(doc.documentType)}
+                          onStatusUpdate={fetchPropertyDetails}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-500">No property documents uploaded yet</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
+
 
           <TabsContent value="seller">
-            <Card>
-              <CardHeader>
-                <CardTitle>Seller Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Name</Label>
-                    <p className="mt-1 flex items-center">
-                      <User className="h-4 w-4 mr-2 text-gray-400" />
-                      {property.seller.firstName} {property.seller.lastName}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Email</Label>
-                    <p className="mt-1 flex items-center">
-                      <Mail className="h-4 w-4 mr-2 text-gray-400" />
-                      {property.seller.email}
-                    </p>
-                  </div>
-                  {property.seller.phoneNumber && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Seller Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <Label className="text-sm font-medium text-gray-600">Phone</Label>
+                      <Label className="text-sm font-medium text-gray-600">Name</Label>
                       <p className="mt-1 flex items-center">
-                        <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                        {property.seller.phoneNumber}
+                        <User className="h-4 w-4 mr-2 text-gray-400" />
+                        {property.seller.firstName} {property.seller.lastName}
                       </p>
                     </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Email</Label>
+                      <p className="mt-1 flex items-center">
+                        <Mail className="h-4 w-4 mr-2 text-gray-400" />
+                        {property.seller.email}
+                      </p>
+                    </div>
+                    {property.seller.phoneNumber && (
+                      <div>
+                        <Label className="text-sm font-medium text-gray-600">Phone</Label>
+                        <p className="mt-1 flex items-center">
+                          <Phone className="h-4 w-4 mr-2 text-gray-400" />
+                          {property.seller.phoneNumber}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Personal Documents Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Personal Documents ({categorizedDocs.personal.length})</CardTitle>
+                  <CardDescription>Seller's personal and authorization documents</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {categorizedDocs.personal.length > 0 ? (
+                    <div className="space-y-3">
+                      {categorizedDocs.personal.map((doc) => (
+                        <DocumentApprovalCard
+                          key={doc.id}
+                          document={doc}
+                          documentLabel={getDocumentTypeLabel(doc.documentType)}
+                          onStatusUpdate={fetchPropertyDetails}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-500">No personal documents uploaded yet</p>
+                    </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="compliance">

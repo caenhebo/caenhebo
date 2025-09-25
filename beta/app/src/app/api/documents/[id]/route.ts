@@ -108,6 +108,81 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   }
 }
 
+// Update document approval status (admin only)
+export async function PUT(request: NextRequest, props: Params) {
+  try {
+    const session = await getServerSession(authOptions)
+
+    if (!session?.user || session.user.role !== 'ADMIN') {
+      return NextResponse.json(
+        { error: 'Unauthorized - Admin access required' },
+        { status: 401 }
+      )
+    }
+
+    const params = await props.params
+    const documentId = params.id
+    const body = await request.json()
+    const { status, comment } = body
+
+    if (!status || !['APPROVED', 'REJECTED', 'PENDING'].includes(status)) {
+      return NextResponse.json(
+        { error: 'Invalid status' },
+        { status: 400 }
+      )
+    }
+
+    const document = await prisma.document.findUnique({
+      where: { id: documentId }
+    })
+
+    if (!document) {
+      return NextResponse.json(
+        { error: 'Document not found' },
+        { status: 404 }
+      )
+    }
+
+    const updatedDocument = await prisma.document.update({
+      where: { id: documentId },
+      data: {
+        adminApprovalStatus: status,
+        adminComment: comment || null,
+        adminReviewedAt: new Date(),
+        adminReviewedBy: session.user.id,
+        verified: status === 'APPROVED'
+      },
+      include: {
+        property: true
+      }
+    })
+
+    // Create notification for the seller
+    if (document.propertyId && updatedDocument.property) {
+      await prisma.notification.create({
+        data: {
+          userId: updatedDocument.property.sellerId,
+          type: 'DOCUMENT_UPLOADED',
+          title: `Document ${status.toLowerCase()}`,
+          message: `Your document has been ${status.toLowerCase()}${comment ? `: ${comment}` : ''}`,
+          propertyId: document.propertyId
+        }
+      })
+    }
+
+    return NextResponse.json({
+      success: true,
+      document: updatedDocument
+    })
+  } catch (error) {
+    console.error('Error updating document approval:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
 // Get document details
 export async function GET(request: NextRequest, { params }: Params) {
   try {
