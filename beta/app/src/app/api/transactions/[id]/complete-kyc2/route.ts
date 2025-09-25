@@ -82,9 +82,39 @@ export async function POST(request: NextRequest, { params }: Params) {
     if (role === 'buyer') {
       updateData.buyerKyc2Verified = true
       updateData.buyerKyc2VerifiedAt = new Date()
+
+      // Update buyer's KYC2 status in user table
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: {
+          kyc2Status: 'PASSED',
+          kyc2CompletedAt: new Date()
+        }
+      })
     } else {
       updateData.sellerKyc2Verified = true
       updateData.sellerKyc2VerifiedAt = new Date()
+
+      // Update seller's KYC2 status in user table
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: {
+          kyc2Status: 'PASSED',
+          kyc2CompletedAt: new Date()
+        }
+      })
+
+      // Make all approved properties visible now that seller has KYC2
+      await prisma.property.updateMany({
+        where: {
+          sellerId: session.user.id,
+          finalApprovalStatus: 'APPROVED',
+          isVisible: false
+        },
+        data: {
+          isVisible: true
+        }
+      })
     }
 
     const updatedTransaction = await prisma.transaction.update({

@@ -35,7 +35,15 @@ export async function POST(request: NextRequest) {
 
     if (user.kycStatus !== 'PASSED') {
       return NextResponse.json(
-        { error: 'KYC verification required to make offers' },
+        { error: 'KYC Tier 1 verification required to make offers' },
+        { status: 400 }
+      )
+    }
+
+    // Check KYC Tier 2 requirement for making offers
+    if (user.kyc2Status !== 'PASSED') {
+      return NextResponse.json(
+        { error: 'KYC Tier 2 verification required to make offers. Please complete enhanced verification to proceed.' },
         { status: 400 }
       )
     }

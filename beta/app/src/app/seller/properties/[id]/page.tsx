@@ -64,6 +64,8 @@ interface Property {
   interestCount?: number
   transactionCount?: number
   interviewCompleted?: boolean
+  isVisible?: boolean
+  finalApprovalStatus?: string
 }
 
 export default function PropertyManagementPage() {
@@ -962,10 +964,34 @@ export default function PropertyManagementPage() {
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium">Property Approved</p>
-                        <p className="text-xs text-gray-500">Listed and visible to buyers</p>
+                        <p className="text-xs text-gray-500">Property reviewed and approved</p>
                       </div>
                       {property.complianceStatus === 'APPROVED' && (
                         <Badge variant="outline" className="text-green-600">Complete</Badge>
+                      )}
+                    </div>
+                    {/* Step 5 - KYC Level 2 for Visibility */}
+                    <div className="flex items-start space-x-3">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                        property.isVisible ?
+                        'bg-green-500 text-white' :
+                        property.complianceStatus === 'APPROVED' ?
+                        'bg-orange-500 text-white' : 'bg-gray-300 text-gray-600'
+                      }`}>
+                        {property.isVisible ? '✓' : '5'}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Complete KYC Level 2</p>
+                        <p className="text-xs text-gray-500">Required to make property visible to buyers</p>
+                      </div>
+                      {property.complianceStatus === 'APPROVED' && !property.isVisible && (
+                        <Button size="sm" variant="outline" className="border-orange-500 text-orange-600"
+                                onClick={() => router.push('/kyc2')}>
+                          Complete Tier 2
+                        </Button>
+                      )}
+                      {property.isVisible && (
+                        <Badge variant="outline" className="text-green-600">Visible</Badge>
                       )}
                     </div>
                   </div>

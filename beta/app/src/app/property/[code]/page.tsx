@@ -110,6 +110,7 @@ export default function PropertyDetailPage({ params }: PageProps) {
   const [propertyTransactions, setPropertyTransactions] = useState<PropertyTransaction[]>([])
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
   const [buyerOffer, setBuyerOffer] = useState<PropertyTransaction | null>(null)
+  const [userKyc2Status, setUserKyc2Status] = useState<string>('PENDING')
 
   useEffect(() => {
     if (status === 'loading') return
@@ -117,7 +118,10 @@ export default function PropertyDetailPage({ params }: PageProps) {
       router.push('/auth/signin')
       return
     }
-    
+
+    // Set user KYC2 status from session
+    setUserKyc2Status(session.user.kyc2Status || 'PENDING')
+
     fetchProperty()
   }, [session, status, code])
 
@@ -566,13 +570,14 @@ export default function PropertyDetailPage({ params }: PageProps) {
                           </Alert>
                         )}
 
-                        <Dialog open={isOfferDialogOpen} onOpenChange={setIsOfferDialogOpen}>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" className="w-full">
-                              <DollarSign className="mr-2 h-4 w-4" />
-                              Make Offer
-                            </Button>
-                          </DialogTrigger>
+                        {userKyc2Status === 'PASSED' ? (
+                          <Dialog open={isOfferDialogOpen} onOpenChange={setIsOfferDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" className="w-full">
+                                <DollarSign className="mr-2 h-4 w-4" />
+                                Make Offer
+                              </Button>
+                            </DialogTrigger>
                       <DialogContent className="sm:max-w-lg">
                         <DialogHeader>
                           <DialogTitle>Make an Offer</DialogTitle>
@@ -752,6 +757,26 @@ export default function PropertyDetailPage({ params }: PageProps) {
                         </div>
                       </DialogContent>
                     </Dialog>
+                        ) : (
+                          <div className="space-y-3">
+                            <Alert className="border-orange-200 bg-orange-50">
+                              <Shield className="h-4 w-4 text-orange-600" />
+                              <AlertDescription>
+                                <strong className="text-orange-900">KYC Tier 2 Required</strong>
+                                <p className="text-sm text-orange-700 mt-1">
+                                  Complete KYC Tier 2 verification to make offers on properties.
+                                </p>
+                              </AlertDescription>
+                            </Alert>
+                            <Button
+                              className="w-full bg-orange-600 hover:bg-orange-700"
+                              onClick={() => router.push('/kyc2')}
+                            >
+                              <Shield className="mr-2 h-4 w-4" />
+                              Complete KYC Tier 2 to Make Offers
+                            </Button>
+                          </div>
+                        )}
                       </>
                     )}
                   </>

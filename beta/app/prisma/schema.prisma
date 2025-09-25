@@ -95,6 +95,7 @@ model Property {
   interviewStatus     String             @default("NOT_SCHEDULED")
   interviewNotes      String?
   finalApprovalStatus String             @default("PENDING")
+  isVisible           Boolean            @default(false)
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
   documentAccess      DocumentAccess[]

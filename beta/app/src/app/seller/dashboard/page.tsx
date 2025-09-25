@@ -16,6 +16,7 @@ import { StrigaIBANDisplay } from '@/components/banking/striga-iban-display'
 
 interface DashboardData {
   kycStatus: string
+  kyc2Status: string
   propertyStats: {
     listedProperties: number
     pendingOffers: number
@@ -29,6 +30,7 @@ interface DashboardData {
   }
   properties: any[]
   totalProperties: number
+  propertiesNeedingKyc2: number
   hasWallets: boolean
   user: {
     emailVerified: boolean
@@ -125,54 +127,93 @@ export default function SellerDashboard() {
     return null
   }
 
-  const { kycStatus, propertyStats, transactionStats, properties, totalProperties } = dashboardData
+  const { kycStatus, kyc2Status, propertyStats, transactionStats, properties, totalProperties, propertiesNeedingKyc2 } = dashboardData
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* KYC Status Indicator - Always visible at top */}
+        <div className="mb-6 p-4 bg-white rounded-lg shadow-sm border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Shield className={`h-6 w-6 ${
+                kyc2Status === 'PASSED' ? 'text-green-600' :
+                kycStatus === 'PASSED' ? 'text-orange-600' :
+                'text-gray-400'
+              }`} />
+              <div>
+                <h3 className="font-semibold text-gray-900">
+                  KYC Verification Status
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {kyc2Status === 'PASSED' ? (
+                    <span className="text-green-600 font-medium">✅ Tier 1 & Tier 2 Completed - All features unlocked</span>
+                  ) : kycStatus === 'PASSED' ? (
+                    <span className="text-orange-600 font-medium">⚠️ Tier 1 Completed - Complete Tier 2 to make properties visible</span>
+                  ) : kycStatus === 'INITIATED' ? (
+                    <span className="text-blue-600 font-medium">⏳ Tier 1 In Progress - Verification pending</span>
+                  ) : kycStatus === 'REJECTED' ? (
+                    <span className="text-red-600 font-medium">❌ Tier 1 Rejected - Contact support</span>
+                  ) : (
+                    <span className="text-gray-600 font-medium">⚪ Not Started - Complete Tier 1 to list properties</span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div>
+              {kyc2Status !== 'PASSED' && kycStatus === 'PASSED' && (
+                <Button
+                  onClick={() => router.push('/kyc2')}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  <Shield className="mr-2 h-4 w-4" />
+                  Complete Tier 2
+                </Button>
+              )}
+              {kycStatus !== 'PASSED' && kycStatus !== 'INITIATED' && kycStatus !== 'REJECTED' && (
+                <Button
+                  onClick={() => router.push('/kyc')}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Shield className="mr-2 h-4 w-4" />
+                  Start KYC Tier 1
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* KYC2 Alert for Properties - MOST PROMINENT */}
+        {kycStatus === 'PASSED' && kyc2Status !== 'PASSED' && propertiesNeedingKyc2 > 0 && (
+          <Alert className="mb-6 border-orange-400 bg-gradient-to-r from-orange-50 to-orange-100 shadow-lg">
+            <Shield className="h-5 w-5 text-orange-600" />
+            <AlertDescription className="flex items-center justify-between">
+              <div>
+                <strong className="text-orange-900 text-lg">
+                  ⚠️ Your Properties Are Not Visible to Buyers
+                </strong>
+                <p className="text-orange-800 mt-2">
+                  You have <span className="font-bold text-orange-900">{propertiesNeedingKyc2}</span> approved
+                  {propertiesNeedingKyc2 === 1 ? ' property' : ' properties'} that cannot be seen by buyers.
+                  <br />
+                  <span className="font-semibold">Complete KYC Level 2 verification now to make them visible and start receiving offers.</span>
+                </p>
+              </div>
+              <Button onClick={() => router.push('/kyc2')}
+                      className="ml-4 bg-orange-600 hover:bg-orange-700 text-white shadow-md"
+                      size="lg">
+                <Shield className="mr-2 h-5 w-5" />
+                Complete Tier 2 Now
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Seller Dashboard</h1>
           <p className="text-gray-600 mt-2">Welcome back, {session.user.email}</p>
         </div>
-
-        {/* KYC Alert */}
-        {kycStatus !== 'PASSED' && (
-          <Alert className="mb-6 border-amber-200 bg-amber-50">
-            <Shield className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="flex items-center justify-between">
-              <div>
-                <strong className="text-amber-900">
-                  {kycStatus === 'REJECTED' 
-                    ? 'KYC Verification Required'
-                    : 'Complete your KYC to start selling properties'}
-                </strong>
-                <p className="text-sm text-amber-700 mt-1">
-                  {kycStatus === 'INITIATED' 
-                    ? 'Your KYC verification is in progress. This usually takes a few minutes.'
-                    : kycStatus === 'REJECTED'
-                    ? 'Please contact support to resolve your KYC verification.'
-                    : 'Verify your identity to list properties and receive payments through digital IBAN.'}
-                </p>
-              </div>
-              {kycStatus !== 'INITIATED' && kycStatus !== 'REJECTED' && (
-                <Button onClick={() => router.push('/kyc')} className="ml-4">
-                  <Shield className="mr-2 h-4 w-4" />
-                  Start KYC Verification
-                </Button>
-              )}
-              {kycStatus === 'INITIATED' && (
-                <Button 
-                  onClick={fetchDashboardData}
-                  variant="outline"
-                  className="ml-4"
-                >
-                  Check Status
-                </Button>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
 
         {error && (
           <Alert variant="destructive" className="mb-6">

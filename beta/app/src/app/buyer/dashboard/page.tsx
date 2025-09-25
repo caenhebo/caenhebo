@@ -26,6 +26,7 @@ export default function BuyerDashboard() {
   const [kycError, setKycError] = useState('')
   // Payment preference removed - now handled per offer
   const [liveKycStatus, setLiveKycStatus] = useState<string | null>(null)
+  const [kyc2Status, setKyc2Status] = useState<string | null>(null)
   const [isCheckingKyc, setIsCheckingKyc] = useState(false)
   const [walletData, setWalletData] = useState<any>(null)
   const [isLoadingWallets, setIsLoadingWallets] = useState(false)
@@ -50,6 +51,7 @@ export default function BuyerDashboard() {
     if (status === 'authenticated' && session?.user) {
       // Use KYC status from session
       setLiveKycStatus(session.user.kycStatus || null)
+      setKyc2Status(session.user.kyc2Status || 'PENDING')
       fetchTransactionStats()
     }
   }, [session, status])
@@ -169,47 +171,57 @@ export default function BuyerDashboard() {
           <p className="text-gray-600 mt-2">Welcome back, {session.user.email}</p>
         </div>
 
-        {/* KYC Alert - Only show if not checking and not approved */}
-        {!isCheckingKyc && liveKycStatus !== 'PASSED' && (
-          <Alert className="mb-6 border-amber-200 bg-amber-50">
-            <Shield className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="flex items-center justify-between">
+        {/* KYC Status Indicator - Always visible at top */}
+        <div className="mb-6 p-4 bg-white rounded-lg shadow-sm border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Shield className={`h-6 w-6 ${
+                kyc2Status === 'PASSED' ? 'text-green-600' :
+                liveKycStatus === 'PASSED' ? 'text-blue-600' :
+                'text-gray-400'
+              }`} />
               <div>
-                <strong className="text-amber-900">
-                  {liveKycStatus === 'REJECTED' 
-                    ? 'KYC Verification Required'
-                    : 'Complete your KYC to start buying properties'}
-                </strong>
-                <p className="text-sm text-amber-700 mt-1">
-                  {liveKycStatus === 'INITIATED' 
-                    ? 'Your KYC verification is in progress. This usually takes a few minutes.'
-                    : liveKycStatus === 'REJECTED'
-                    ? 'Please contact support to resolve your KYC verification.'
-                    : 'Verify your identity to unlock all features and start making offers on properties.'}
+                <h3 className="font-semibold text-gray-900">
+                  KYC Verification Status
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {kyc2Status === 'PASSED' ? (
+                    <span className="text-green-600 font-medium">✅ Tier 1 & Tier 2 Completed - You can make offers on properties</span>
+                  ) : liveKycStatus === 'PASSED' ? (
+                    <span className="text-orange-600 font-medium">⚠️ Tier 1 Completed - Complete Tier 2 to make offers on properties</span>
+                  ) : liveKycStatus === 'INITIATED' ? (
+                    <span className="text-blue-600 font-medium">⏳ Tier 1 In Progress - Verification pending</span>
+                  ) : liveKycStatus === 'REJECTED' ? (
+                    <span className="text-red-600 font-medium">❌ Tier 1 Rejected - Contact support</span>
+                  ) : (
+                    <span className="text-gray-600 font-medium">⚪ Not Started - Complete Tier 1 to browse and make offers</span>
+                  )}
                 </p>
               </div>
-              {liveKycStatus !== 'INITIATED' && liveKycStatus !== 'REJECTED' && (
-                <Button 
-                  onClick={initiateKYC}
-                  disabled={isInitiatingKYC}
-                  className="ml-4"
+            </div>
+            <div>
+              {kyc2Status !== 'PASSED' && liveKycStatus === 'PASSED' && (
+                <Button
+                  onClick={() => router.push('/kyc2')}
+                  className="bg-orange-600 hover:bg-orange-700"
+                  size="lg"
                 >
-                  {isInitiatingKYC ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Starting KYC...
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="mr-2 h-4 w-4" />
-                      Start KYC Verification
-                    </>
-                  )}
+                  <Shield className="mr-2 h-4 w-4" />
+                  Complete Tier 2 to Make Offers
                 </Button>
               )}
-            </AlertDescription>
-          </Alert>
-        )}
+              {liveKycStatus !== 'PASSED' && liveKycStatus !== 'INITIATED' && liveKycStatus !== 'REJECTED' && (
+                <Button
+                  onClick={initiateKYC}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Shield className="mr-2 h-4 w-4" />
+                  Start KYC Tier 1
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
 
         {kycError && (
           <Alert variant="destructive" className="mb-6">

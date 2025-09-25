@@ -34,6 +34,11 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: 'desc' },
         include: {
           documents: true,
+          seller: {
+            select: {
+              kyc2Status: true
+            }
+          },
           _count: {
             select: {
               interests: true,
@@ -66,6 +71,13 @@ export async function GET(request: NextRequest) {
         interviewStatus: property.interviewStatus,
         interviewNotes: property.interviewNotes,
         finalApprovalStatus: property.finalApprovalStatus,
+        isVisible: property.isVisible,
+        visibilityStatus: property.finalApprovalStatus === 'APPROVED' && !property.isVisible
+          ? 'Approved but not visible - Complete KYC Level 2 to make visible'
+          : property.isVisible
+          ? 'Visible to buyers'
+          : 'Not visible',
+        requiresKyc2: property.finalApprovalStatus === 'APPROVED' && !property.isVisible,
         createdAt: property.createdAt.toISOString(),
         updatedAt: property.updatedAt.toISOString(),
         interestCount: property._count.interests,
@@ -110,6 +122,7 @@ export async function GET(request: NextRequest) {
         interviewStatus: property.interviewStatus,
         interviewNotes: property.interviewNotes,
         finalApprovalStatus: property.finalApprovalStatus,
+        isVisible: property.isVisible,
         createdAt: property.createdAt.toISOString(),
         updatedAt: property.updatedAt.toISOString(),
         interestCount: property._count.interests,

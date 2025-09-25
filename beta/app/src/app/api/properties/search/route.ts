@@ -43,7 +43,8 @@ export async function GET(request: NextRequest) {
 
     // Build where clause for property search
     let whereClause: any = {
-      complianceStatus: 'APPROVED' // Only show approved properties to buyers
+      complianceStatus: 'APPROVED', // Only show approved properties to buyers
+      isVisible: true // Only show properties that are visible (seller has KYC2)
     }
 
     // Search by property code (exact match)

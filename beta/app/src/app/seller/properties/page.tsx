@@ -27,6 +27,10 @@ interface Property {
   complianceStatus: 'PENDING' | 'APPROVED' | 'REJECTED'
   complianceNotes?: string
   valuationPrice?: string
+  finalApprovalStatus?: string
+  isVisible?: boolean
+  visibilityStatus?: string
+  requiresKyc2?: boolean
   createdAt: string
   updatedAt: string
   interestCount: number
@@ -166,7 +170,22 @@ export default function PropertiesPage() {
                         {property.code}
                       </CardDescription>
                     </div>
-                    {getComplianceStatusBadge(property.complianceStatus)}
+                    <div className="flex flex-col items-end gap-1">
+                      {getComplianceStatusBadge(property.complianceStatus)}
+                      {property.finalApprovalStatus === 'APPROVED' && (
+                        property.isVisible ? (
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-xs">
+                            <Eye className="h-3 w-3 mr-1" />
+                            Visible
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 text-xs">
+                            <Eye className="h-3 w-3 mr-1" />
+                            Not Visible
+                          </Badge>
+                        )
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -244,6 +263,14 @@ export default function PropertiesPage() {
                       Documents
                     </Button>
                   </div>
+
+                  {property.requiresKyc2 && (
+                    <Alert className="mt-4 border-orange-200 bg-orange-50">
+                      <AlertDescription className="text-xs text-orange-800">
+                        Complete KYC Level 2 to make this property visible to buyers
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
                   {property.complianceStatus === 'REJECTED' && property.complianceNotes && (
                     <Alert variant="destructive" className="mt-4">

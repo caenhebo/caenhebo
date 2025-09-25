@@ -17,11 +17,12 @@ export async function GET(request: NextRequest) {
       // Get user data
       prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { 
-          kycStatus: true, 
-          emailVerified: true, 
+        select: {
+          kycStatus: true,
+          kyc2Status: true,
+          emailVerified: true,
           phoneVerified: true,
-          strigaUserId: true 
+          strigaUserId: true
         }
       }),
       
@@ -139,6 +140,8 @@ export async function GET(request: NextRequest) {
       price: property.price.toString(),
       listingStatus: 'ACTIVE',
       complianceStatus: property.complianceStatus,
+      finalApprovalStatus: property.finalApprovalStatus,
+      isVisible: property.isVisible,
       interestCount: property._count.interests,
       transactionCount: property._count.transactions
     }))
@@ -152,12 +155,19 @@ export async function GET(request: NextRequest) {
       hasWallets = walletCount > 0
     }
 
+    // Count properties that need KYC2 for visibility
+    const propertiesNeedingKyc2 = properties.filter(p =>
+      p.finalApprovalStatus === 'APPROVED' && !p.isVisible
+    ).length
+
     return NextResponse.json({
       kycStatus: kycData,
+      kyc2Status: user?.kyc2Status || 'PENDING',
       propertyStats,
       transactionStats,
       properties: formattedProperties.slice(0, 5), // Return only first 5 for dashboard
       totalProperties: properties.length,
+      propertiesNeedingKyc2,
       hasWallets,
       user: {
         emailVerified: user?.emailVerified || false,
