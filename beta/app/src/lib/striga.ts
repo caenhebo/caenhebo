@@ -228,7 +228,7 @@ export async function createStrigaUser(userData: any): Promise<any> {
 }
 
 // KYC Management
-export async function initiateKYC(strigaUserId: string): Promise<{
+export async function initiateKYC(strigaUserId: string, tier: number = 1): Promise<{
   kycUrl: string
   sessionId: string
   token: string
@@ -242,15 +242,16 @@ export async function initiateKYC(strigaUserId: string): Promise<{
       method: 'POST',
       body: JSON.stringify({
         userId: strigaUserId,
-        tier: 1 // Start with Tier 1 KYC
+        tier: tier // Support both Tier 1 and Tier 2
       })
     })
-    
-    console.log('[Striga] KYC Start Response:', response)
-    
-    // Return the internal KYC verification page URL with token
-    const kycUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://95.179.170.56:3019'}/kyc/verify?token=${response.token}`
-    
+
+    console.log(`[Striga] KYC Tier ${tier} Start Response:`, response)
+
+    // For Tier 2, use a different redirect path
+    const redirectPath = tier === 2 ? '/kyc2/verify' : '/kyc/verify'
+    const kycUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://95.179.170.56:3019'}${redirectPath}?token=${response.token}`
+
     return {
       kycUrl,
       sessionId: response.token,

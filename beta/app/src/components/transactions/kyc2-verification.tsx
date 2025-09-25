@@ -77,32 +77,13 @@ export function Kyc2Verification({ transactionId, role, onComplete }: Kyc2Verifi
       setStartingKyc(true)
       setError(null)
 
-      const response = await fetch(`/api/transactions/${transactionId}/start-kyc2`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ role })
-      })
+      // For now, redirect to the standalone KYC2 page
+      // The transaction context will be preserved through the session
+      window.location.href = '/kyc2'
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to start KYC2 verification')
-      }
-
-      const data = await response.json()
-
-      // If we got a KYC URL, redirect to it
-      if (data.kycUrl) {
-        window.location.href = data.kycUrl
-      } else {
-        // Otherwise refresh status
-        await fetchKyc2Status()
-      }
     } catch (err) {
       console.error('Error starting KYC2:', err)
       setError(err instanceof Error ? err.message : 'Failed to start KYC2 verification')
-    } finally {
       setStartingKyc(false)
     }
   }

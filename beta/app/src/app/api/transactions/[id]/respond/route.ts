@@ -20,7 +20,7 @@ export async function POST(
 
     const transactionId = params.id
     const body = await request.json()
-    const { action, counterPrice, message, terms, paymentMethod, cryptoPercentage, fiatPercentage } = body
+    const { action, counterPrice, message, terms, advancePaymentPercentage } = body
 
     // Validate action
     if (!['accept', 'reject', 'counter'].includes(action)) {
@@ -168,29 +168,34 @@ export async function POST(
         )
       }
 
-      // Create counter offer
+      // Validate advance payment percentage
+      let advancePayment = 0
+      if (advancePaymentPercentage !== undefined) {
+        if (advancePaymentPercentage < 0 || advancePaymentPercentage > 20) {
+          return NextResponse.json(
+            { error: 'Advance payment must be between 0% and 20%' },
+            { status: 400 }
+          )
+        }
+        advancePayment = advancePaymentPercentage
+      }
+
+      // Create counter offer with advance payment
       await prisma.counterOffer.create({
         data: {
           transactionId: transactionId,
           price: parseFloat(counterPrice),
+          advancePaymentPercentage: advancePayment,
           message: message || null,
           terms: terms || null,
           fromBuyer: false // This is from seller
         }
       })
 
-      // Update transaction status to NEGOTIATION and payment method if provided
+      // Update transaction status to NEGOTIATION and advance payment
       const updateData: any = {
-        status: 'NEGOTIATION'
-      }
-      
-      // Update payment method if provided in counter offer
-      if (paymentMethod) {
-        updateData.paymentMethod = paymentMethod
-        if (paymentMethod === 'HYBRID' && cryptoPercentage !== undefined && fiatPercentage !== undefined) {
-          updateData.cryptoPercentage = cryptoPercentage
-          updateData.fiatPercentage = fiatPercentage
-        }
+        status: 'NEGOTIATION',
+        advancePaymentPercentage: advancePayment
       }
       
       updatedTransaction = await prisma.transaction.update({

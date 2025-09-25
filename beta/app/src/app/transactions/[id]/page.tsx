@@ -67,9 +67,10 @@ interface Transaction {
   sellerKyc2Verified?: boolean
   kyc2StartedAt?: string
   fundProtectionDate?: string
-  paymentMethod: 'FIAT' | 'CRYPTO' | 'HYBRID'
+  paymentMethod?: 'FIAT' | 'CRYPTO' | 'HYBRID'
   cryptoPercentage?: number
   fiatPercentage?: number
+  advancePaymentPercentage?: number
   property: {
     id: string
     code: string
@@ -104,6 +105,7 @@ interface Transaction {
   counterOffers: Array<{
     id: string
     price: string
+    advancePaymentPercentage?: number
     message?: string
     terms?: string
     fromBuyer: boolean
@@ -151,9 +153,7 @@ export default function TransactionDetailPage({ params }: PageProps) {
     counterPrice: '',
     message: '',
     terms: '',
-    paymentMethod: 'FIAT' as 'FIAT' | 'CRYPTO' | 'HYBRID',
-    cryptoPercentage: 50,
-    fiatPercentage: 50
+    advancePaymentPercentage: 0
   })
 
   useEffect(() => {
@@ -222,15 +222,13 @@ export default function TransactionDetailPage({ params }: PageProps) {
           counterPrice: responseForm.counterPrice || undefined,
           message: responseForm.message || undefined,
           terms: responseForm.terms || undefined,
-          paymentMethod: responseForm.action === 'counter' ? responseForm.paymentMethod : undefined,
-          cryptoPercentage: responseForm.action === 'counter' && responseForm.paymentMethod === 'HYBRID' ? responseForm.cryptoPercentage : undefined,
-          fiatPercentage: responseForm.action === 'counter' && responseForm.paymentMethod === 'HYBRID' ? responseForm.fiatPercentage : undefined
+          advancePaymentPercentage: responseForm.action === 'counter' ? responseForm.advancePaymentPercentage : undefined
         })
       })
 
       if (response.ok) {
         setIsResponseDialogOpen(false)
-        setResponseForm({ action: '', counterPrice: '', message: '', terms: '' })
+        setResponseForm({ action: '', counterPrice: '', message: '', terms: '', advancePaymentPercentage: 0 })
         fetchTransaction() // Refresh transaction data
       } else {
         const errorData = await response.json()
@@ -926,26 +924,36 @@ export default function TransactionDetailPage({ params }: PageProps) {
                     </div>
                   )}
                   
-                  <div>
-                    <div className="text-sm text-gray-600 mb-1">Payment Method</div>
-                    <div className="font-medium flex items-center">
-                      {transaction.paymentMethod === 'FIAT' && (
-                        <><Euro className="h-4 w-4 mr-2" />Bank Transfer (100% EUR)</>  
-                      )}
-                      {transaction.paymentMethod === 'CRYPTO' && (
-                        <><DollarSign className="h-4 w-4 mr-2" />Cryptocurrency (100%)</>  
-                      )}
-                      {transaction.paymentMethod === 'HYBRID' && (
-                        <>
-                          <CreditCard className="h-4 w-4 mr-2" />
-                          Hybrid ({transaction.fiatPercentage || 50}% EUR / {transaction.cryptoPercentage || 50}% Crypto)
-                        </>
-                      )}
-                      {!transaction.paymentMethod && (
-                        <><CreditCard className="h-4 w-4 mr-2 text-gray-400" />Traditional Bank Transfer (default)</>
-                      )}
+                  {transaction.userRole === 'buyer' ? (
+                    <div>
+                      <div className="text-sm text-gray-600 mb-1">Payment Method</div>
+                      <div className="font-medium flex items-center">
+                        {transaction.paymentMethod === 'FIAT' && (
+                          <><Euro className="h-4 w-4 mr-2" />Bank Transfer (100% EUR)</>
+                        )}
+                        {transaction.paymentMethod === 'CRYPTO' && (
+                          <><DollarSign className="h-4 w-4 mr-2" />Cryptocurrency (100%)</>
+                        )}
+                        {transaction.paymentMethod === 'HYBRID' && (
+                          <>
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            Hybrid ({transaction.fiatPercentage || 50}% EUR / {transaction.cryptoPercentage || 50}% Crypto)
+                          </>
+                        )}
+                        {!transaction.paymentMethod && (
+                          <><CreditCard className="h-4 w-4 mr-2 text-gray-400" />Traditional Bank Transfer (default)</>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div>
+                      <div className="text-sm text-gray-600 mb-1">Advance Payment</div>
+                      <div className="font-medium flex items-center">
+                        <Euro className="h-4 w-4 mr-2" />
+                        {transaction.advancePaymentPercentage || 0}% of agreed price
+                      </div>
+                    </div>
+                  )}
                   
                   <div>
                     <div className="text-sm text-gray-600 mb-1">Offer Date</div>
@@ -1009,12 +1017,21 @@ export default function TransactionDetailPage({ params }: PageProps) {
                           </div>
                         </div>
                         
+                        {offer.advancePaymentPercentage !== undefined && offer.advancePaymentPercentage !== null && (
+                          <div className="text-sm mt-2 p-2 bg-white rounded">
+                            <strong>Advance Payment Requested:</strong>{' '}
+                            <span className="font-bold text-green-700">
+                              {offer.advancePaymentPercentage}% upfront
+                            </span>
+                          </div>
+                        )}
+
                         {offer.message && (
                           <div className="text-sm text-gray-700 mt-2">
                             <strong>Message:</strong> {offer.message}
                           </div>
                         )}
-                        
+
                         {offer.terms && (
                           <div className="text-sm text-gray-700 mt-1">
                             <strong>Terms:</strong> {offer.terms}
@@ -1100,12 +1117,10 @@ export default function TransactionDetailPage({ params }: PageProps) {
                             </Button>
                             <Button
                               variant={responseForm.action === 'counter' ? 'default' : 'outline'}
-                              onClick={() => setResponseForm(prev => ({ 
-                                ...prev, 
+                              onClick={() => setResponseForm(prev => ({
+                                ...prev,
                                 action: 'counter',
-                                paymentMethod: transaction?.paymentMethod || 'FIAT',
-                                cryptoPercentage: transaction?.cryptoPercentage || 50,
-                                fiatPercentage: transaction?.fiatPercentage || 50
+                                advancePaymentPercentage: transaction?.advancePaymentPercentage || 0
                               }))}
                               className="text-sm"
                             >
@@ -1136,30 +1151,50 @@ export default function TransactionDetailPage({ params }: PageProps) {
                                 </div>
                               </div>
                               
-                              <div>
-                                <span className="text-sm text-gray-600">Payment Method:</span>
-                                <div className="font-medium flex items-center mt-1">
-                                  {transaction.paymentMethod === 'FIAT' && (
-                                    <><CreditCard className="h-4 w-4 mr-2 text-blue-600" />Traditional Bank Transfer (100% EUR)</>  
-                                  )}
-                                  {transaction.paymentMethod === 'CRYPTO' && (
-                                    <><Bitcoin className="h-4 w-4 mr-2 text-orange-500" />Cryptocurrency (100%)</>  
-                                  )}
-                                  {transaction.paymentMethod === 'HYBRID' && (
-                                    <>
-                                      <Euro className="h-4 w-4 mr-2 text-green-600" />
-                                      Hybrid Payment: {transaction.fiatPercentage || 50}% EUR + {transaction.cryptoPercentage || 50}% Crypto
-                                    </>
-                                  )}
+                              {transaction.userRole === 'buyer' && (
+                                <div>
+                                  <span className="text-sm text-gray-600">Advance Payment Requested:</span>
+                                  <div className="font-bold text-lg mt-1">
+                                    {transaction.counterOffers.length > 0 && transaction.counterOffers[0].advancePaymentPercentage !== undefined
+                                      ? `${transaction.counterOffers[0].advancePaymentPercentage}%`
+                                      : `${transaction.advancePaymentPercentage || 0}%`
+                                    } upfront
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    You will pay this percentage when the transaction is finalized
+                                  </p>
                                 </div>
-                              </div>
+                              )}
+
+                              {transaction.userRole === 'seller' && (
+                                <div>
+                                  <span className="text-sm text-gray-600">Payment Method:</span>
+                                  <div className="font-medium flex items-center mt-1">
+                                    {transaction.paymentMethod === 'FIAT' && (
+                                      <><CreditCard className="h-4 w-4 mr-2 text-blue-600" />Traditional Bank Transfer (100% EUR)</>
+                                    )}
+                                    {transaction.paymentMethod === 'CRYPTO' && (
+                                      <><Bitcoin className="h-4 w-4 mr-2 text-orange-500" />Cryptocurrency (100%)</>
+                                    )}
+                                    {transaction.paymentMethod === 'HYBRID' && (
+                                      <>
+                                        <Euro className="h-4 w-4 mr-2 text-green-600" />
+                                        Hybrid Payment: {transaction.fiatPercentage || 50}% EUR + {transaction.cryptoPercentage || 50}% Crypto
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             
                             <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
                               <div className="flex items-start">
                                 <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
                                 <div className="text-sm text-yellow-800">
-                                  <strong>Important:</strong> By accepting, you agree to receive payment using the method specified by the buyer. This cannot be changed after acceptance.
+                                  <strong>Important:</strong> {transaction.userRole === 'buyer'
+                                    ? `By accepting, you agree to pay ${transaction.counterOffers.length > 0 && transaction.counterOffers[0].advancePaymentPercentage !== undefined ? transaction.counterOffers[0].advancePaymentPercentage : (transaction.advancePaymentPercentage || 0)}% upfront when the transaction is finalized.`
+                                    : 'By accepting, you agree to receive payment using the method specified by the buyer. This cannot be changed after acceptance.'
+                                  }
                                 </div>
                               </div>
                             </div>
@@ -1182,73 +1217,37 @@ export default function TransactionDetailPage({ params }: PageProps) {
                             </div>
                             
                             <div>
-                              <Label>Payment Method</Label>
-                              <RadioGroup 
-                                value={responseForm.paymentMethod} 
-                                onValueChange={(value: 'FIAT' | 'CRYPTO' | 'HYBRID') => 
-                                  setResponseForm(prev => ({ ...prev, paymentMethod: value }))
-                                }
-                              >
-                                <div className="flex items-center space-x-2 mt-2">
-                                  <RadioGroupItem value="FIAT" id="response-fiat" />
-                                  <Label htmlFor="response-fiat" className="flex items-center gap-2 cursor-pointer">
-                                    <CreditCard className="h-4 w-4" />
-                                    Traditional Bank Transfer (100% EUR)
-                                  </Label>
-                                </div>
-                                <div className="flex items-center space-x-2 mt-2">
-                                  <RadioGroupItem value="CRYPTO" id="response-crypto" />
-                                  <Label htmlFor="response-crypto" className="flex items-center gap-2 cursor-pointer">
-                                    <Bitcoin className="h-4 w-4" />
-                                    Cryptocurrency (100%)
-                                  </Label>
-                                </div>
-                                <div className="flex items-center space-x-2 mt-2">
-                                  <RadioGroupItem value="HYBRID" id="response-hybrid" />
-                                  <Label htmlFor="response-hybrid" className="flex items-center gap-2 cursor-pointer">
-                                    <Euro className="h-4 w-4" />
-                                    Hybrid (Mix of Crypto + Fiat)
-                                  </Label>
-                                </div>
-                              </RadioGroup>
-                            </div>
-                            
-                            {responseForm.paymentMethod === 'HYBRID' && (
-                              <div>
-                                <Label>Payment Split</Label>
-                                <div className="space-y-3 mt-2">
-                                  <div>
-                                    <div className="flex justify-between text-sm mb-2">
-                                      <span className="flex items-center gap-1">
-                                        <Euro className="h-3 w-3" />
-                                        Fiat: {responseForm.fiatPercentage}%
-                                      </span>
-                                      <span className="flex items-center gap-1">
-                                        <Bitcoin className="h-3 w-3" />
-                                        Crypto: {responseForm.cryptoPercentage}%
-                                      </span>
-                                    </div>
-                                    <Slider
-                                      value={[responseForm.fiatPercentage]}
-                                      onValueChange={([value]) => {
-                                        setResponseForm(prev => ({
-                                          ...prev,
-                                          fiatPercentage: value,
-                                          cryptoPercentage: 100 - value
-                                        }))
-                                      }}
-                                      min={0}
-                                      max={100}
-                                      step={5}
-                                      className="w-full"
-                                    />
-                                    <div className="text-xs text-gray-600 mt-1">
-                                      Drag to adjust the payment split between fiat and cryptocurrency
-                                    </div>
-                                  </div>
-                                </div>
+                              <Label htmlFor="advance-payment">
+                                {transaction.userRole === 'seller' ? 'Request Advance Payment (%)' : 'Counter-Offer Advance Payment (%)'}
+                              </Label>
+                              <div className="flex items-center space-x-2 mt-2">
+                                <Input
+                                  id="advance-payment"
+                                  type="number"
+                                  min="0"
+                                  max="20"
+                                  step="1"
+                                  placeholder="0-20%"
+                                  value={responseForm.advancePaymentPercentage}
+                                  onChange={(e) => {
+                                    const value = parseInt(e.target.value) || 0
+                                    if (value >= 0 && value <= 20) {
+                                      setResponseForm(prev => ({ ...prev, advancePaymentPercentage: value }))
+                                    }
+                                  }}
+                                  className="w-32"
+                                />
+                                <span className="text-sm text-gray-600">
+                                  of agreed price (max 20%)
+                                </span>
                               </div>
-                            )}
+                              <p className="text-xs text-gray-500 mt-2">
+                                {transaction.userRole === 'seller'
+                                  ? 'The buyer will pay this percentage upfront when the transaction is finalized'
+                                  : 'You are proposing to pay this percentage upfront when the transaction is finalized'
+                                }
+                              </p>
+                            </div>
                           </>
                         )}
                         
@@ -1282,14 +1281,12 @@ export default function TransactionDetailPage({ params }: PageProps) {
                           variant="outline" 
                           onClick={() => {
                             setIsResponseDialogOpen(false)
-                            setResponseForm({ 
-                              action: '', 
-                              counterPrice: '', 
-                              message: '', 
+                            setResponseForm({
+                              action: '',
+                              counterPrice: '',
+                              message: '',
                               terms: '',
-                              paymentMethod: 'FIAT',
-                              cryptoPercentage: 50,
-                              fiatPercentage: 50
+                              advancePaymentPercentage: 0
                             })
                             setError('')
                           }}

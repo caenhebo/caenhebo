@@ -142,10 +142,13 @@ export async function GET(
       buyerSignedMediation: transaction.buyerSignedMediation,
       sellerSignedMediation: transaction.sellerSignedMediation,
       
-      // Payment information
-      paymentMethod: transaction.paymentMethod,
-      cryptoPercentage: transaction.cryptoPercentage,
-      fiatPercentage: transaction.fiatPercentage,
+      // Payment information - hide from seller, show to buyer
+      paymentMethod: isSeller && !isAdmin ? undefined : transaction.paymentMethod,
+      cryptoPercentage: isSeller && !isAdmin ? undefined : transaction.cryptoPercentage,
+      fiatPercentage: isSeller && !isAdmin ? undefined : transaction.fiatPercentage,
+
+      // Advance payment information - visible to both
+      advancePaymentPercentage: transaction.advancePaymentPercentage || 0,
       
       // Relations
       property: transaction.property,
