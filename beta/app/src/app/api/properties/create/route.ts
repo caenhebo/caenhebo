@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
+import { writeFile, mkdir } from 'fs/promises'
+import { join } from 'path'
+import { nanoid } from 'nanoid'
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,20 +35,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const {
-      title,
-      description,
-      address,
-      city,
-      state,
-      postalCode,
-      country = 'Portugal',
-      price,
-      area,
-      bedrooms,
-      bathrooms
-    } = body
+    // Parse FormData
+    const formData = await request.formData()
+
+    const title = formData.get('title') as string
+    const description = formData.get('description') as string
+    const propertyType = formData.get('propertyType') as string
+    const address = formData.get('address') as string
+    const city = formData.get('city') as string
+    const state = formData.get('state') as string
+    const postalCode = formData.get('postalCode') as string
+    const country = formData.get('country') as string || 'Portugal'
+    const price = formData.get('price') as string
+    const area = formData.get('area') as string
+    const bedrooms = formData.get('bedrooms') as string
+    const bathrooms = formData.get('bathrooms') as string
+
+    // Get files
+    const photoFiles = formData.getAll('photos') as File[]
+    const diagramFiles = formData.getAll('diagrams') as File[]
 
     // Validate required fields
     if (!title || !address || !city || !postalCode || !price) {
@@ -63,20 +71,29 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate photo limit
+    if (photoFiles.length > 20) {
+      return NextResponse.json(
+        { error: 'Maximum 20 photos allowed' },
+        { status: 400 }
+      )
+    }
+
     // Generate unique property code
     const year = new Date().getFullYear()
     const propertyCount = await prisma.property.count()
     const propertyCode = `CAE-${year}-${(propertyCount + 1).toString().padStart(4, '0')}`
 
-    // Create property
+    // Create property first to get ID for folder
     const property = await prisma.property.create({
       data: {
         code: propertyCode,
         title,
-        description,
+        description: description || null,
+        propertyType: propertyType || null,
         address,
         city,
-        state,
+        state: state || null,
         postalCode,
         country,
         price: parseFloat(price),
@@ -84,27 +101,69 @@ export async function POST(request: NextRequest) {
         bedrooms: bedrooms ? parseInt(bedrooms) : null,
         bathrooms: bathrooms ? parseInt(bathrooms) : null,
         sellerId: session.user.id,
-        complianceStatus: 'PENDING'
+        complianceStatus: 'PENDING',
+        photos: [],
+        diagrams: []
+      }
+    })
+
+    // Upload directory
+    const uploadDir = join(process.cwd(), 'uploads', 'properties', property.id)
+    await mkdir(uploadDir, { recursive: true })
+
+    // Upload photos
+    const photoUrls: string[] = []
+    for (const file of photoFiles) {
+      if (file.size > 0) {
+        const buffer = Buffer.from(await file.arrayBuffer())
+        const filename = `${nanoid()}_${Date.now()}.${file.name.split('.').pop()}`
+        const filepath = join(uploadDir, filename)
+        await writeFile(filepath, buffer)
+        photoUrls.push(`/api/uploads/properties/${property.id}/${filename}`)
+      }
+    }
+
+    // Upload diagrams
+    const diagramUrls: string[] = []
+    for (const file of diagramFiles) {
+      if (file.size > 0) {
+        const buffer = Buffer.from(await file.arrayBuffer())
+        const filename = `diagram_${nanoid()}_${Date.now()}.${file.name.split('.').pop()}`
+        const filepath = join(uploadDir, filename)
+        await writeFile(filepath, buffer)
+        diagramUrls.push(`/api/uploads/properties/${property.id}/${filename}`)
+      }
+    }
+
+    // Update property with photo and diagram URLs
+    const updatedProperty = await prisma.property.update({
+      where: { id: property.id },
+      data: {
+        photos: photoUrls,
+        diagrams: diagramUrls
       }
     })
 
     return NextResponse.json({
       property: {
-        id: property.id,
-        code: property.code,
-        title: property.title,
-        description: property.description,
-        address: property.address,
-        city: property.city,
-        state: property.state,
-        postalCode: property.postalCode,
-        country: property.country,
-        price: property.price.toString(),
-        area: property.area,
-        bedrooms: property.bedrooms,
-        bathrooms: property.bathrooms,
-        complianceStatus: property.complianceStatus,
-        createdAt: property.createdAt.toISOString()
+        id: updatedProperty.id,
+        code: updatedProperty.code,
+        title: updatedProperty.title,
+        description: updatedProperty.description,
+        propertyType: updatedProperty.propertyType,
+        address: updatedProperty.address,
+        city: updatedProperty.city,
+        state: updatedProperty.state,
+        postalCode: updatedProperty.postalCode,
+        country: updatedProperty.country,
+        price: updatedProperty.price.toString(),
+        area: updatedProperty.area,
+        bedrooms: updatedProperty.bedrooms,
+        bathrooms: updatedProperty.bathrooms,
+        photos: updatedProperty.photos,
+        diagrams: updatedProperty.diagrams,
+        complianceStatus: updatedProperty.complianceStatus,
+        createdAt: updatedProperty.createdAt.toISOString()
       }
     }, { status: 201 })
 

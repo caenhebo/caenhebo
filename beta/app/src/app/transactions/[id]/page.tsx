@@ -19,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Slider } from '@/components/ui/slider'
 import { Bitcoin, DollarSign } from 'lucide-react'
-import { 
+import {
   ArrowLeft,
   Euro,
   Calendar,
@@ -37,7 +37,8 @@ import {
   CreditCard,
   Shield,
   ArrowRight,
-  Download
+  Download,
+  Star
 } from 'lucide-react'
 
 interface Transaction {
@@ -71,6 +72,14 @@ interface Transaction {
   cryptoPercentage?: number
   fiatPercentage?: number
   advancePaymentPercentage?: number
+  buyerConfirmedComplete?: boolean
+  buyerConfirmedCompleteAt?: string
+  buyerRating?: number
+  buyerReview?: string
+  sellerConfirmedComplete?: boolean
+  sellerConfirmedCompleteAt?: string
+  sellerRating?: number
+  sellerReview?: string
   property: {
     id: string
     code: string
@@ -155,6 +164,12 @@ export default function TransactionDetailPage({ params }: PageProps) {
     terms: '',
     advancePaymentPercentage: 0
   })
+  const [isCompleting, setIsCompleting] = useState(false)
+  const [completionForm, setCompletionForm] = useState({
+    rating: 0,
+    review: ''
+  })
+  const [showCompletionForm, setShowCompletionForm] = useState(false)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -244,10 +259,10 @@ export default function TransactionDetailPage({ params }: PageProps) {
 
   const handleAdvanceStage = async () => {
     if (!transaction || !session?.user) return
-    
+
     setIsAdvancing(true)
     setError('')
-    
+
     try {
       const response = await fetch(`/api/transactions/${id}/advance`, {
         method: 'POST',
@@ -270,6 +285,48 @@ export default function TransactionDetailPage({ params }: PageProps) {
       setError('Failed to advance transaction')
     } finally {
       setIsAdvancing(false)
+    }
+  }
+
+  const handleCompleteTransaction = async () => {
+    if (!transaction || !session?.user || !completionForm.rating) return
+
+    setIsCompleting(true)
+    setError('')
+
+    try {
+      const response = await fetch(`/api/transactions/${id}/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          rating: completionForm.rating,
+          review: completionForm.review || undefined
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setShowCompletionForm(false)
+        setCompletionForm({ rating: 0, review: '' })
+        fetchTransaction() // Refresh transaction data
+
+        // Show success message
+        if (data.transaction.status === 'COMPLETED') {
+          alert('🎉 Transaction completed successfully! Both parties have confirmed.')
+        } else {
+          alert('✅ Your confirmation has been recorded. Waiting for the other party to confirm.')
+        }
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to confirm completion')
+      }
+    } catch (error) {
+      console.error('Error completing transaction:', error)
+      setError('Failed to confirm completion')
+    } finally {
+      setIsCompleting(false)
     }
   }
 
@@ -744,6 +801,302 @@ export default function TransactionDetailPage({ params }: PageProps) {
                   <FundProtectionSeller transactionId={transaction.id} />
                 )}
               </div>
+            )}
+
+            {/* STAGE 5: CLOSING - Appointment scheduling message */}
+            {transaction.status === 'CLOSING' && (
+              <Card className="border-4 border-purple-500 shadow-2xl bg-gradient-to-b from-purple-50 to-white">
+                <CardHeader className="bg-purple-600 text-white">
+                  <CardTitle className="text-2xl flex items-center">
+                    <Calendar className="mr-3 h-8 w-8" />
+                    Stage 5: Closing - Property Transfer
+                  </CardTitle>
+                  <p className="text-purple-100 mt-2">
+                    Payment confirmed! Preparing for property transfer appointment
+                  </p>
+                </CardHeader>
+                <CardContent className="p-8">
+                  {/* Check if current user has already confirmed */}
+                  {((transaction.userRole === 'buyer' && transaction.buyerConfirmedComplete) ||
+                    (transaction.userRole === 'seller' && transaction.sellerConfirmedComplete)) ? (
+                    <div className="text-center space-y-6 mb-8">
+                      <div className="flex justify-center">
+                        <CheckCircle className="h-20 w-20 text-green-500" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold text-green-700 mb-2">
+                          You've Confirmed Completion!
+                        </h3>
+                        <p className="text-gray-600">
+                          {(transaction.userRole === 'buyer' && transaction.sellerConfirmedComplete) ||
+                           (transaction.userRole === 'seller' && transaction.buyerConfirmedComplete)
+                            ? 'The other party has also confirmed. Transaction completed! 🎉'
+                            : 'Waiting for the other party to confirm completion...'}
+                        </p>
+                        <div className="mt-4 inline-flex items-center space-x-2 text-yellow-600">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`h-6 w-6 ${
+                                star <= (transaction.userRole === 'buyer' ? transaction.buyerRating || 0 : transaction.sellerRating || 0)
+                                  ? 'fill-yellow-400 text-yellow-400'
+                                  : 'text-gray-300'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-sm text-gray-500 mt-2">Your rating</p>
+                      </div>
+                    </div>
+                  ) : null}
+                  {transaction.userRole === 'seller' ? (
+                    <div className="text-center space-y-6">
+                      <div className="flex justify-center">
+                        <CheckCircle className="h-24 w-24 text-green-500" />
+                      </div>
+
+                      <div className="space-y-4">
+                        <h3 className="text-3xl font-bold text-gray-900">
+                          Payment Confirmed Successfully!
+                        </h3>
+
+                        <Alert className="border-4 border-blue-500 bg-blue-50 text-left">
+                          <Calendar className="h-6 w-6 text-blue-600" />
+                          <AlertDescription className="ml-2">
+                            <p className="text-xl font-semibold text-blue-900 mb-2">
+                              📞 You will be contacted in the next 24 hours for your appointment
+                            </p>
+                            <p className="text-gray-700 text-base">
+                              Our team will reach out to schedule the property transfer appointment at the notary office.
+                              Please ensure you have all required documents ready.
+                            </p>
+                          </AlertDescription>
+                        </Alert>
+
+                        <div className="bg-gray-50 rounded-lg p-6 text-left">
+                          <h4 className="font-bold text-lg mb-4 flex items-center">
+                            <FileText className="mr-2 h-5 w-5 text-gray-600" />
+                            Documents to Prepare:
+                          </h4>
+                          <ul className="space-y-2 text-gray-700">
+                            <li className="flex items-start">
+                              <CheckCircle className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                              <span>Original property title deed (Escritura)</span>
+                            </li>
+                            <li className="flex items-start">
+                              <CheckCircle className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                              <span>Updated land registry certificate (Certidão Permanente)</span>
+                            </li>
+                            <li className="flex items-start">
+                              <CheckCircle className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                              <span>Energy efficiency certificate (Certificado Energético)</span>
+                            </li>
+                            <li className="flex items-start">
+                              <CheckCircle className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                              <span>Urban property tax register (Caderneta Predial Urbana)</span>
+                            </li>
+                            <li className="flex items-start">
+                              <CheckCircle className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                              <span>Valid identification document (Cartão de Cidadão or Passport)</span>
+                            </li>
+                            <li className="flex items-start">
+                              <CheckCircle className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                              <span>Portuguese tax number (NIF)</span>
+                            </li>
+                          </ul>
+                        </div>
+
+                        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4">
+                          <div className="flex items-start">
+                            <AlertCircle className="h-6 w-6 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" />
+                            <div className="text-left">
+                              <p className="font-semibold text-yellow-900 mb-1">
+                                Important Reminder
+                              </p>
+                              <p className="text-sm text-yellow-800">
+                                Keep your phone accessible and check your email regularly.
+                                Our team will contact you via the phone number and email address registered in your account.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-6">
+                      <div className="flex justify-center">
+                        <CheckCircle className="h-24 w-24 text-green-500" />
+                      </div>
+
+                      <div className="space-y-4">
+                        <h3 className="text-3xl font-bold text-gray-900">
+                          Payment Completed!
+                        </h3>
+
+                        <Alert className="border-4 border-blue-500 bg-blue-50 text-left">
+                          <Calendar className="h-6 w-6 text-blue-600" />
+                          <AlertDescription className="ml-2">
+                            <p className="text-xl font-semibold text-blue-900 mb-2">
+                              📞 You will be contacted in the next 24 hours for your appointment
+                            </p>
+                            <p className="text-gray-700 text-base">
+                              Our team will reach out to schedule the property transfer appointment at the notary office.
+                            </p>
+                          </AlertDescription>
+                        </Alert>
+
+                        <div className="bg-gray-50 rounded-lg p-6 text-left">
+                          <h4 className="font-bold text-lg mb-4 flex items-center">
+                            <FileText className="mr-2 h-5 w-5 text-gray-600" />
+                            What to Bring:
+                          </h4>
+                          <ul className="space-y-2 text-gray-700">
+                            <li className="flex items-start">
+                              <CheckCircle className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                              <span>Valid identification document (Cartão de Cidadão or Passport)</span>
+                            </li>
+                            <li className="flex items-start">
+                              <CheckCircle className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                              <span>Portuguese tax number (NIF)</span>
+                            </li>
+                            <li className="flex items-start">
+                              <CheckCircle className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                              <span>Proof of payment receipts</span>
+                            </li>
+                          </ul>
+                        </div>
+
+                        <div className="bg-green-50 border-2 border-green-400 rounded-lg p-4">
+                          <div className="flex items-start">
+                            <CheckCircle className="h-6 w-6 text-green-600 mt-0.5 mr-3 flex-shrink-0" />
+                            <div className="text-left">
+                              <p className="font-semibold text-green-900 mb-1">
+                                Congratulations!
+                              </p>
+                              <p className="text-sm text-green-800">
+                                You're almost a property owner! The final step is signing the deed at the notary office.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Completion Button - Show if user hasn't confirmed yet */}
+                  {((transaction.userRole === 'buyer' && !transaction.buyerConfirmedComplete) ||
+                    (transaction.userRole === 'seller' && !transaction.sellerConfirmedComplete)) && (
+                    <div className="mt-8 border-t-4 border-purple-300 pt-8">
+                      {!showCompletionForm ? (
+                        <div className="text-center">
+                          <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                            Ready to Complete the Transaction?
+                          </h3>
+                          <p className="text-gray-600 mb-6">
+                            After the notary appointment and receiving the property keys,
+                            confirm the transaction is complete and rate your experience.
+                          </p>
+                          <Button
+                            size="lg"
+                            onClick={() => setShowCompletionForm(true)}
+                            className="bg-purple-600 hover:bg-purple-700 text-lg px-8 py-6 h-auto"
+                          >
+                            <CheckCircle className="mr-3 h-6 w-6" />
+                            Confirm Transaction Complete
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          <div className="text-center">
+                            <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                              Rate Your Experience
+                            </h3>
+                            <p className="text-gray-600">
+                              Please share your feedback about this transaction
+                            </p>
+                          </div>
+
+                          <div className="bg-white rounded-lg p-6 border-2 border-purple-200">
+                            <Label className="text-lg font-semibold mb-3 block">
+                              How would you rate this transaction? *
+                            </Label>
+                            <div className="flex justify-center space-x-2 mb-6">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                  key={star}
+                                  type="button"
+                                  onClick={() => setCompletionForm(prev => ({ ...prev, rating: star }))}
+                                  className="transition-transform hover:scale-110"
+                                >
+                                  <Star
+                                    className={`h-12 w-12 ${
+                                      star <= completionForm.rating
+                                        ? 'fill-yellow-400 text-yellow-400'
+                                        : 'text-gray-300 hover:text-yellow-200'
+                                    }`}
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                            {completionForm.rating > 0 && (
+                              <p className="text-center text-gray-600 mb-4">
+                                {completionForm.rating === 5 && '⭐ Excellent!'}
+                                {completionForm.rating === 4 && '😊 Great!'}
+                                {completionForm.rating === 3 && '👍 Good'}
+                                {completionForm.rating === 2 && '😐 Fair'}
+                                {completionForm.rating === 1 && '😞 Needs Improvement'}
+                              </p>
+                            )}
+
+                            <Label htmlFor="review" className="text-base font-medium mb-2 block">
+                              Leave a review (optional)
+                            </Label>
+                            <Textarea
+                              id="review"
+                              placeholder="Share your experience with this transaction..."
+                              value={completionForm.review}
+                              onChange={(e) => setCompletionForm(prev => ({ ...prev, review: e.target.value }))}
+                              rows={4}
+                              className="resize-none"
+                            />
+                          </div>
+
+                          <div className="flex justify-center space-x-4">
+                            <Button
+                              variant="outline"
+                              size="lg"
+                              onClick={() => {
+                                setShowCompletionForm(false)
+                                setCompletionForm({ rating: 0, review: '' })
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="lg"
+                              onClick={handleCompleteTransaction}
+                              disabled={isCompleting || completionForm.rating === 0}
+                              className="bg-purple-600 hover:bg-purple-700"
+                            >
+                              {isCompleting ? (
+                                <>
+                                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                  Submitting...
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="mr-2 h-5 w-5" />
+                                  Submit & Complete Transaction
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
             {/* Offer Details */}

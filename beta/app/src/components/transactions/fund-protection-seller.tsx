@@ -378,6 +378,30 @@ export function FundProtectionSeller({ transactionId }: FundProtectionSellerProp
                   </p>
                 </div>
 
+                <Alert className="bg-yellow-50 border-yellow-400 border-4">
+                  <Clock className="h-6 w-6 text-yellow-600" />
+                  <AlertDescription className="text-yellow-900">
+                    <strong className="text-xl block mb-3">⏰ Remember to Verify - Within 24 Hours</strong>
+                    <div className="space-y-2 text-base">
+                      <p>
+                        <strong>Please complete this transfer within the next 24 hours.</strong>
+                      </p>
+                      <p>
+                        The buyer has successfully sent the payment. Now transfer €{parseFloat(currentStep.amount).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} from your vIBAN to your personal bank account.
+                      </p>
+                      <div className="mt-3 pt-3 border-t border-yellow-300">
+                        <p className="font-semibold">📧 Need Help?</p>
+                        <p className="text-sm">
+                          If you have any questions or issues, send us an email at{' '}
+                          <a href="mailto:support@caenhebo.com" className="underline font-semibold hover:text-yellow-700">
+                            support@caenhebo.com
+                          </a>
+                        </p>
+                      </div>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+
                 <Button
                   className="w-full"
                   size="lg"
@@ -501,6 +525,32 @@ export function FundProtectionSeller({ transactionId }: FundProtectionSellerProp
                     </CardContent>
                   </Card>
                 )}
+
+                <Alert className="bg-yellow-50 border-yellow-400 border-4">
+                  <Clock className="h-6 w-6 text-yellow-600" />
+                  <AlertDescription className="text-yellow-900">
+                    <strong className="text-xl block mb-3">⏰ Remember to Check and Verify - Within 24 Hours</strong>
+                    <div className="space-y-2 text-base">
+                      <p>
+                        <strong>Please verify the payment in your bank account within the next 24 hours.</strong>
+                      </p>
+                      <p>
+                        1. Check your actual bank account (not just the screenshot)<br/>
+                        2. Confirm you received the full amount: <span className="font-bold text-green-700">€{parseFloat(currentStep.amount).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</span><br/>
+                        3. Click the confirmation button below
+                      </p>
+                      <div className="mt-3 pt-3 border-t border-yellow-300">
+                        <p className="font-semibold">📧 Need Help?</p>
+                        <p className="text-sm">
+                          If you have any questions or issues verifying the payment, send us an email at{' '}
+                          <a href="mailto:support@caenhebo.com" className="underline font-semibold hover:text-yellow-700">
+                            support@caenhebo.com
+                          </a>
+                        </p>
+                      </div>
+                    </div>
+                  </AlertDescription>
+                </Alert>
 
                 <Alert variant="destructive" className="bg-red-50 border-red-300">
                   <AlertDescription className="text-red-900">

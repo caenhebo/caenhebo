@@ -10,11 +10,13 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ArrowLeft, Home, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ArrowLeft, Home, Loader2, CheckCircle, AlertCircle, Upload, X, Image as ImageIcon, FileText } from 'lucide-react'
 
 interface FormData {
   title: string
   description: string
+  propertyType: string
   address: string
   city: string
   state: string
@@ -26,15 +28,28 @@ interface FormData {
   bathrooms: string
 }
 
+const PROPERTY_TYPES = [
+  { value: 'APARTMENT', label: 'Apartment (Apartamento)' },
+  { value: 'HOUSE', label: 'House (Casa)' },
+  { value: 'OFFICE', label: 'Office (Escritório)' },
+  { value: 'BUILDING', label: 'Building (Prédio)' },
+  { value: 'LOT', label: 'Lot (Lote / Terreno)' }
+]
+
 export default function NewPropertyPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [photos, setPhotos] = useState<File[]>([])
+  const [diagrams, setDiagrams] = useState<File[]>([])
+  const [photoPreview, setPhotoPreview] = useState<string[]>([])
+  const [diagramPreview, setDiagramPreview] = useState<string[]>([])
   const [formData, setFormData] = useState<FormData>({
     title: '',
     description: '',
+    propertyType: '',
     address: '',
     city: '',
     state: '',
@@ -56,10 +71,54 @@ export default function NewPropertyPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
-    
+
     // Clear errors when user starts typing
     if (error) setError('')
     if (success) setSuccess('')
+  }
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+
+    const newFiles = Array.from(files)
+    const totalPhotos = photos.length + newFiles.length
+
+    if (totalPhotos > 20) {
+      setError('Maximum 20 photos allowed')
+      return
+    }
+
+    // Create preview URLs
+    const newPreviews = newFiles.map(file => URL.createObjectURL(file))
+
+    setPhotos(prev => [...prev, ...newFiles])
+    setPhotoPreview(prev => [...prev, ...newPreviews])
+    setError('')
+  }
+
+  const handleDiagramUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+
+    const newFiles = Array.from(files)
+    const newPreviews = newFiles.map(file => URL.createObjectURL(file))
+
+    setDiagrams(prev => [...prev, ...newFiles])
+    setDiagramPreview(prev => [...prev, ...newPreviews])
+    setError('')
+  }
+
+  const removePhoto = (index: number) => {
+    URL.revokeObjectURL(photoPreview[index])
+    setPhotos(prev => prev.filter((_, i) => i !== index))
+    setPhotoPreview(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const removeDiagram = (index: number) => {
+    URL.revokeObjectURL(diagramPreview[index])
+    setDiagrams(prev => prev.filter((_, i) => i !== index))
+    setDiagramPreview(prev => prev.filter((_, i) => i !== index))
   }
 
   const validateForm = (): string | null => {
@@ -81,7 +140,7 @@ export default function NewPropertyPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Validate form
     const validationError = validateForm()
     if (validationError) {
@@ -91,26 +150,36 @@ export default function NewPropertyPage() {
 
     setIsSubmitting(true)
     setError('')
-    
+
     try {
+      // First, create FormData for file uploads
+      const uploadData = new FormData()
+      uploadData.append('title', formData.title.trim())
+      uploadData.append('description', formData.description.trim() || '')
+      uploadData.append('propertyType', formData.propertyType || '')
+      uploadData.append('address', formData.address.trim())
+      uploadData.append('city', formData.city.trim())
+      uploadData.append('state', formData.state.trim() || '')
+      uploadData.append('postalCode', formData.postalCode.trim())
+      uploadData.append('country', formData.country)
+      uploadData.append('price', formData.price)
+      uploadData.append('area', formData.area || '')
+      uploadData.append('bedrooms', formData.bedrooms || '')
+      uploadData.append('bathrooms', formData.bathrooms || '')
+
+      // Add photos
+      photos.forEach((photo) => {
+        uploadData.append('photos', photo)
+      })
+
+      // Add diagrams
+      diagrams.forEach((diagram) => {
+        uploadData.append('diagrams', diagram)
+      })
+
       const response = await fetch('/api/properties/create', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title: formData.title.trim(),
-          description: formData.description.trim() || null,
-          address: formData.address.trim(),
-          city: formData.city.trim(),
-          state: formData.state.trim() || null,
-          postalCode: formData.postalCode.trim(),
-          country: formData.country,
-          price: formData.price,
-          area: formData.area || null,
-          bedrooms: formData.bedrooms || null,
-          bathrooms: formData.bathrooms || null
-        })
+        body: uploadData // Don't set Content-Type, browser will set it with boundary
       })
 
       const data = await response.json()
@@ -120,12 +189,12 @@ export default function NewPropertyPage() {
       }
 
       setSuccess(`Property successfully listed with code: ${data.property.code}`)
-      
+
       // Redirect to dashboard after 2 seconds
       setTimeout(() => {
         router.push('/seller/dashboard')
       }, 2000)
-      
+
     } catch (error) {
       console.error('Error creating property:', error)
       setError(error instanceof Error ? error.message : 'Failed to create property')
@@ -187,6 +256,26 @@ export default function NewPropertyPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Property Type Selection */}
+                <div className="md:col-span-2">
+                  <Label htmlFor="propertyType">Property Type *</Label>
+                  <Select
+                    value={formData.propertyType}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, propertyType: value }))}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Select property type..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROPERTY_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="md:col-span-2">
                   <Label htmlFor="title">Property Title *</Label>
                   <Input
@@ -211,6 +300,96 @@ export default function NewPropertyPage() {
                     className="mt-1"
                     rows={4}
                   />
+                </div>
+
+                {/* Photo Upload */}
+                <div className="md:col-span-2">
+                  <Label>Property Photos (up to 20)</Label>
+                  <div className="mt-2">
+                    <label htmlFor="photos" className="cursor-pointer">
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition">
+                        <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                        <p className="mt-2 text-sm text-gray-600">
+                          Click to upload photos ({photos.length}/20)
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">PNG, JPG, JPEG up to 10MB each</p>
+                      </div>
+                    </label>
+                    <input
+                      id="photos"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                    />
+                  </div>
+
+                  {/* Photo Previews */}
+                  {photoPreview.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                      {photoPreview.map((preview, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={preview}
+                            alt={`Photo ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-lg"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removePhoto(index)}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Diagram Upload */}
+                <div className="md:col-span-2">
+                  <Label>Floor Plans / Diagrams</Label>
+                  <div className="mt-2">
+                    <label htmlFor="diagrams" className="cursor-pointer">
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition">
+                        <FileText className="mx-auto h-12 w-12 text-gray-400" />
+                        <p className="mt-2 text-sm text-gray-600">
+                          Click to upload floor plans/diagrams ({diagrams.length})
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">PDF, PNG, JPG up to 10MB each</p>
+                      </div>
+                    </label>
+                    <input
+                      id="diagrams"
+                      type="file"
+                      accept="image/*,.pdf"
+                      multiple
+                      onChange={handleDiagramUpload}
+                      className="hidden"
+                    />
+                  </div>
+
+                  {/* Diagram Previews */}
+                  {diagramPreview.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                      {diagramPreview.map((preview, index) => (
+                        <div key={index} className="relative group">
+                          <div className="w-full h-32 bg-gray-100 rounded-lg flex items-center justify-center">
+                            <FileText className="h-8 w-8 text-gray-400" />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeDiagram(index)}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="md:col-span-2">

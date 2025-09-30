@@ -56,6 +56,7 @@ interface Property {
   code: string
   title: string
   description?: string
+  propertyType?: string
   address: string
   city: string
   state?: string
@@ -65,11 +66,13 @@ interface Property {
   area?: number
   bedrooms?: number
   bathrooms?: number
+  photos?: string[]
+  diagrams?: string[]
   complianceStatus: 'PENDING' | 'APPROVED' | 'REJECTED'
   complianceNotes?: string
   valuationPrice?: string
   documentStatus: 'NOT_STARTED' | 'INCOMPLETE' | 'COMPLETE' | 'APPROVED'
-  interviewStatus: 'NOT_SCHEDULED' | 'SCHEDULED' | 'COMPLETED' 
+  interviewStatus: 'NOT_SCHEDULED' | 'SCHEDULED' | 'COMPLETED'
   interviewDate?: string
   interviewNotes?: string
   finalApprovalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED'
@@ -551,6 +554,55 @@ export default function AdminPropertyDetails() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Photos & Diagrams Download Section */}
+              {((property.photos && property.photos.length > 0) || (property.diagrams && property.diagrams.length > 0)) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Photos & Diagrams</CardTitle>
+                    <CardDescription>Download property images for external use</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {property.photos && property.photos.length > 0 && (
+                      <div>
+                        <Label className="text-sm font-semibold mb-3 block">Photos ({property.photos.length})</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          {property.photos.map((photoUrl, index) => (
+                            <Button
+                              key={index}
+                              variant="outline"
+                              className="justify-start"
+                              onClick={() => window.open(photoUrl, '_blank')}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Photo {index + 1}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {property.diagrams && property.diagrams.length > 0 && (
+                      <div>
+                        <Label className="text-sm font-semibold mb-3 block">Diagrams ({property.diagrams.length})</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          {property.diagrams.map((diagramUrl, index) => (
+                            <Button
+                              key={index}
+                              variant="outline"
+                              className="justify-start"
+                              onClick={() => window.open(diagramUrl, '_blank')}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Diagram {index + 1}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Property Documents Section */}
               <Card>

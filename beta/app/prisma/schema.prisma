@@ -81,6 +81,9 @@ model Property {
   code                String             @unique
   title               String
   description         String?
+  propertyType        PropertyType?      // Type of property
+  photos              String[]           // Array of photo URLs (up to 20)
+  diagrams            String[]           // Array of diagram URLs
   address             String
   city                String
   state               String?
@@ -156,6 +159,10 @@ model Transaction {
   purchaseAgreementSignedAt DateTime?
   sellerSignedPromissory    Boolean?                   @default(false)
   sellerSignedPromissoryAt  DateTime?
+  buyerSignedPurchase       Boolean?                   @default(false)
+  buyerSignedPurchaseAt     DateTime?
+  sellerSignedPurchase      Boolean?                   @default(false)
+  sellerSignedPurchaseAt    DateTime?
   buyerSignedMediation      Boolean?                   @default(false)
   buyerSignedMediationAt    DateTime?
   sellerSignedMediation     Boolean?                   @default(false)
@@ -166,6 +173,14 @@ model Transaction {
   sellerKyc2VerifiedAt      DateTime?
   kyc2StartedAt             DateTime?
   fundProtectionDate        DateTime?
+  buyerConfirmedComplete    Boolean                    @default(false)
+  buyerConfirmedCompleteAt  DateTime?
+  buyerRating               Int?
+  buyerReview               String?
+  sellerConfirmedComplete   Boolean                    @default(false)
+  sellerConfirmedCompleteAt DateTime?
+  sellerRating              Int?
+  sellerReview              String?
   counterOffers             CounterOffer[]
   documents                 Document[]
   escrowDetails             EscrowDetails?
@@ -524,4 +539,12 @@ enum NotificationType {
   TRANSACTION_STATUS_CHANGE
   KYC_STATUS_CHANGE
   INTERVIEW_SCHEDULED
+}
+
+enum PropertyType {
+  APARTMENT  // Apartamento
+  HOUSE      // Casa
+  OFFICE     // Escritório
+  BUILDING   // Prédio
+  LOT        // Lote / Terreno
 }
