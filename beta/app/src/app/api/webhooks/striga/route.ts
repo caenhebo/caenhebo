@@ -57,7 +57,10 @@ export async function POST(request: NextRequest) {
         break
       
       case 'TRANSACTION_COMPLETED':
+      case 'WALLET_DEPOSIT':
+      case 'WALLET_CREDIT':
         await handleTransactionCompleted(data)
+        await handleWalletDeposit(data) // Auto-detect fund protection deposits
         break
       
       case 'IBAN_CREATED':
@@ -331,14 +334,116 @@ async function createUserDigitalIban(userId: string, strigaUserId: string) {
 
     // Import createDigitalIban from striga lib
     const { createDigitalIban } = await import('@/lib/striga')
-    
+
     // Create IBAN directly via Striga API
     const ibanData = await createDigitalIban(strigaUserId)
-    
+
     console.log(`Created digital IBAN for user ${userId}:`, ibanData)
-    
+
     // The IBAN record will be created when we receive the IBAN_CREATED webhook
   } catch (error) {
     console.error(`Failed to create digital IBAN for user ${userId}:`, error)
+  }
+}
+
+// Auto-detect fund protection deposits
+async function handleWalletDeposit(data: any) {
+  const { userId, walletId, amount, currency, transactionId, status } = data
+
+  try {
+    // Only process completed deposits
+    if (status !== 'COMPLETED') {
+      return
+    }
+
+    // Find user by Striga user ID
+    const user = await prisma.user.findUnique({
+      where: { strigaUserId: userId }
+    })
+
+    if (!user) {
+      console.error('User not found for Striga ID:', userId)
+      return
+    }
+
+    // Find wallet
+    const wallet = await prisma.wallet.findFirst({
+      where: {
+        userId: user.id,
+        strigaWalletId: walletId
+      }
+    })
+
+    if (!wallet) {
+      console.error('Wallet not found:', walletId)
+      return
+    }
+
+    // Find any pending CRYPTO_DEPOSIT steps for this user and currency
+    const pendingDepositSteps = await prisma.fundProtectionStep.findMany({
+      where: {
+        stepType: 'CRYPTO_DEPOSIT',
+        status: 'PENDING',
+        currency: currency,
+        transaction: {
+          buyerId: user.id
+        }
+      },
+      include: {
+        transaction: true
+      }
+    })
+
+    if (pendingDepositSteps.length === 0) {
+      console.log(`No pending CRYPTO_DEPOSIT steps found for user ${user.id} and currency ${currency}`)
+      return
+    }
+
+    // Process each matching step
+    for (const step of pendingDepositSteps) {
+      // Verify amount matches (convert to numbers for comparison)
+      const expectedAmount = parseFloat(step.amount?.toString() || '0')
+      const receivedAmount = parseFloat(amount)
+
+      if (Math.abs(expectedAmount - receivedAmount) < 0.00001) {
+        // Mark step as completed
+        await prisma.fundProtectionStep.update({
+          where: { id: step.id },
+          data: {
+            status: 'COMPLETED',
+            txHash: transactionId,
+            completedAt: new Date()
+          }
+        })
+
+        // Create notification for buyer
+        await prisma.notification.create({
+          data: {
+            userId: user.id,
+            type: 'TRANSACTION_UPDATE',
+            title: 'Deposit Confirmed',
+            message: `Your ${currency} deposit has been confirmed. You can now transfer to the seller.`,
+            link: `/transactions/${step.transactionId}`
+          }
+        })
+
+        // Update wallet balance
+        await prisma.wallet.update({
+          where: { id: wallet.id },
+          data: {
+            balance: { increment: receivedAmount },
+            lastSyncAt: new Date()
+          }
+        })
+
+        console.log(`Auto-completed CRYPTO_DEPOSIT step ${step.id} for transaction ${step.transactionId}`)
+      } else {
+        console.log(`Amount mismatch for step ${step.id}: expected ${expectedAmount}, received ${receivedAmount}`)
+      }
+    }
+
+  } catch (error) {
+    console.error('Failed to handle wallet deposit:', error)
+    throw error
   }
 }

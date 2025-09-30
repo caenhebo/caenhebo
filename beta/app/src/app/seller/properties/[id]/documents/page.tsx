@@ -58,28 +58,39 @@ interface Property {
 }
 
 const DOCUMENT_CATEGORIES = [
-  { value: 'COMPLIANCE_DECLARATION', label: '📋 Compliance Declaration Form (Declaração de Conformidade)', required: true },
-  { value: 'ENERGY_CERTIFICATE', label: '🏡 Energy Efficiency Certificate (Certificado Energético)', required: true, description: 'Issued by a qualified technician authorized by ADENE' },
-  { value: 'MUNICIPAL_LICENSE', label: '📜 Usage License (Licença de Habitação)', required: true, description: 'Issued by the Municipal Council' },
-  { value: 'PREDIAL_REGISTRATION', label: '🏛 Permanent Land Registry Certificate (Certidão Permanente do Registo Predial)', required: true, description: 'Issued by the IRN' },
-  { value: 'CADERNETA_PREDIAL_URBANA', label: '📄 Urban Property Tax Register (Caderneta Predial Urbana)', required: true, description: 'Issued by the Tax Authority' },
-  { value: 'OWNER_AUTHORIZATION', label: '✍️ Owner Authorization Form (Autorização do Proprietário)', required: true, description: 'Written authorization from the property owner to list and sell the property' },
+  // REQUIRED DOCUMENTS
+  { value: 'CADERNETA_PREDIAL_URBANA', label: '📄 Caderneta Predial (CP)', required: true, description: 'Tax registration certificate from Autoridade Tributária - Serviço de Finanças (Tax Office)' },
+  { value: 'PREDIAL_REGISTRATION', label: '🏛 Certidão do Registo Predial', required: true, description: 'Real estate registry certificate from Conservatória do Registo Predial (Registry Office)' },
+  { value: 'MUNICIPAL_LICENSE', label: '📜 Licença de Utilização', required: true, description: 'Usage license from Câmara Municipal (City Council)' },
+  { value: 'FLOOR_PLAN', label: '📐 Planta do Imóvel', required: true, description: 'Property floor plans' },
+  { value: 'ENERGY_CERTIFICATE', label: '⚡ Certificado Energético', required: true, description: 'Energy certificate issued by a qualified technician' },
+  { value: 'TECHNICAL_DATASHEET', label: '📋 Ficha Técnica da Habitação (FTH)', required: true, description: 'Technical datasheet prepared by engineers/architects' },
+  { value: 'MUNICIPAL_PREFERENCE', label: '🏛 Direito de Preferência da Câmara Municipal', required: true, description: 'Preference rights application addressed to City Council' },
+  { value: 'CONDOMINIUM_DEBT_CERT', label: '🏢 Declaração de Não Dívida do Condomínio', required: true, description: 'Non-debt certificate issued by condominium management' },
+  { value: 'COMPLIANCE_DECLARATION', label: '✅ Declaração de Conformidade', required: true, description: 'Compliance Declaration Form' },
+  { value: 'PERSONAL_ID', label: '🆔 Personal ID', required: true, description: 'Passport or National ID of property owner' },
+
+  // RECOMMENDED (NOT REQUIRED)
+  { value: 'OWNER_AUTHORIZATION', label: '✍️ Owner Authorization Form (Autorização do Proprietário)', required: false, description: 'Written authorization from the property owner to list and sell the property' },
   { value: 'TITLE_DEED', label: '📑 Title Deed (Escritura)', required: false },
-  { value: 'FLOOR_PLAN', label: '📐 Floor Plans (Plantas)', required: false },
   { value: 'PHOTO', label: '📷 Property Photos (Fotografias do Imóvel)', required: false },
   { value: 'OTHER', label: '📎 Other Documents (Outros Documentos)', required: false }
 ]
 
 const ALLOWED_FILE_TYPES = {
-  'COMPLIANCE_DECLARATION': ['.pdf', '.doc', '.docx'],
-  'ENERGY_CERTIFICATE': ['.pdf'],
-  'MUNICIPAL_LICENSE': ['.pdf', '.doc', '.docx'],
-  'PREDIAL_REGISTRATION': ['.pdf', '.doc', '.docx'],
   'CADERNETA_PREDIAL_URBANA': ['.pdf', '.doc', '.docx'],
+  'PREDIAL_REGISTRATION': ['.pdf', '.doc', '.docx'],
+  'MUNICIPAL_LICENSE': ['.pdf', '.doc', '.docx'],
+  'FLOOR_PLAN': ['.pdf', '.jpg', '.jpeg', '.png'],
+  'ENERGY_CERTIFICATE': ['.pdf'],
+  'TECHNICAL_DATASHEET': ['.pdf', '.doc', '.docx'],
+  'MUNICIPAL_PREFERENCE': ['.pdf', '.doc', '.docx'],
+  'CONDOMINIUM_DEBT_CERT': ['.pdf', '.doc', '.docx'],
+  'COMPLIANCE_DECLARATION': ['.pdf', '.doc', '.docx'],
+  'PERSONAL_ID': ['.pdf', '.jpg', '.jpeg', '.png'],
   'OWNER_AUTHORIZATION': ['.pdf', '.doc', '.docx'],
   'TITLE_DEED': ['.pdf', '.doc', '.docx'],
   'PHOTO': ['.jpg', '.jpeg', '.png', '.webp'],
-  'FLOOR_PLAN': ['.pdf', '.jpg', '.jpeg', '.png'],
   'OTHER': ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.txt']
 }
 

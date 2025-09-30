@@ -51,6 +51,8 @@ export const authOptions: NextAuthOptions = {
           name: `${user.firstName} ${user.lastName}`,
           role: user.role,
           kycStatus: user.kycStatus,
+          kyc2Status: user.kyc2Status,
+          mediationAgreementSigned: user.mediationAgreementSigned,
           strigaUserId: user.strigaUserId,
           paymentPreference: user.paymentPreference,
         }
@@ -61,13 +63,22 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt'
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.role = user.role
         token.kycStatus = user.kycStatus
+        token.kyc2Status = user.kyc2Status
+        token.mediationAgreementSigned = user.mediationAgreementSigned
         token.strigaUserId = user.strigaUserId
         token.paymentPreference = user.paymentPreference
       }
+
+      // Handle session updates (when we manually update the session)
+      if (trigger === "update" && session) {
+        token.kyc2Status = session.kyc2Status
+        token.mediationAgreementSigned = session.mediationAgreementSigned
+      }
+
       return token
     },
     async session({ session, token }) {
@@ -75,9 +86,27 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.sub!
         session.user.role = token.role as string
         session.user.kycStatus = token.kycStatus as string
+        session.user.kyc2Status = token.kyc2Status as string
+        session.user.mediationAgreementSigned = token.mediationAgreementSigned as boolean
         session.user.strigaUserId = token.strigaUserId as string
         session.user.paymentPreference = token.paymentPreference as string
       }
+
+      // Always fetch fresh data from database for critical statuses
+      if (session.user?.id) {
+        const user = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: {
+            kyc2Status: true,
+            mediationAgreementSigned: true
+          }
+        })
+        if (user) {
+          session.user.kyc2Status = user.kyc2Status
+          session.user.mediationAgreementSigned = user.mediationAgreementSigned
+        }
+      }
+
       return session
     }
   },

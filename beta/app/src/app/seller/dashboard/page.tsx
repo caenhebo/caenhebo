@@ -230,13 +230,12 @@ export default function SellerDashboard() {
             <AlertDescription className="flex items-center justify-between">
               <div>
                 <strong className="text-orange-900 text-lg">
-                  ⚠️ Your Properties Are Not Visible to Buyers
+                  ⚠️ Complete KYC Level 2 to Receive Offers
                 </strong>
                 <p className="text-orange-800 mt-2">
-                  You have <span className="font-bold text-orange-900">{propertiesNeedingKyc2}</span> approved
-                  {propertiesNeedingKyc2 === 1 ? ' property' : ' properties'} that cannot be seen by buyers.
+                  Your properties are visible to buyers with KYC Tier 1, but you need <span className="font-bold text-orange-900">KYC Tier 2</span> verification to receive and accept offers.
                   <br />
-                  <span className="font-semibold">Complete KYC Level 2 verification now to make them visible and start receiving offers.</span>
+                  <span className="font-semibold">Complete KYC Level 2 verification now to start receiving offers on your properties.</span>
                 </p>
               </div>
               <Button onClick={() => router.push('/kyc2')}
@@ -491,7 +490,7 @@ export default function SellerDashboard() {
                   <Alert>
                     <Shield className="h-4 w-4" />
                     <AlertDescription>
-                      Complete KYC Tier 2 verification to access your financial accounts.
+                      Complete KYC Tier 2 verification to access your financial accounts and receive offers on properties.
                     </AlertDescription>
                   </Alert>
                 </div>

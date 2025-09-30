@@ -639,7 +639,7 @@ export default function PropertyManagementPage() {
                                 Offer #{index + 1}: €{Number(transaction.offerPrice).toLocaleString()}
                               </p>
                               <p className="text-sm text-gray-600">
-                                From: {transaction.buyer?.firstName || ''} {transaction.buyer?.lastName || transaction.buyer?.email}
+                                From: Buyer #{index + 1}
                               </p>
                             </div>
                             <Button 
@@ -681,7 +681,10 @@ export default function PropertyManagementPage() {
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
                               <p className="font-medium">
-                                Offer from {transaction.buyer?.firstName || ''} {transaction.buyer?.lastName || transaction.buyer?.email}
+                                {transaction.status === 'AGREEMENT' || transaction.status === 'COMPLETED'
+                                  ? `Offer from ${transaction.buyer?.firstName || ''} ${transaction.buyer?.lastName || transaction.buyer?.email}`
+                                  : `Offer from Buyer #${transactions.indexOf(transaction) + 1}`
+                                }
                               </p>
                               <Badge className={
                                 transaction.status === 'ACCEPTED' ? 'bg-green-100 text-green-800' :
@@ -901,66 +904,15 @@ export default function PropertyManagementPage() {
                       )}
                     </div>
 
-                    {/* Step 2 */}
-                    <div className="flex items-start space-x-3">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                        property.complianceStatus === 'APPROVED' || property.complianceStatus === 'REJECTED' || 
-                        (property.complianceStatus === 'PENDING' && property.interviewCompleted) ? 
-                        'bg-green-500 text-white' : 
-                        documents && documents.filter(doc => 
-                          ['COMPLIANCE_DECLARATION', 'ENERGY_CERTIFICATE', 'MUNICIPAL_LICENSE', 
-                           'PREDIAL_REGISTRATION', 'CADERNETA_PREDIAL_URBANA'].includes(doc.type)
-                        ).length >= 5 ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-600'
-                      }`}>
-                        {property.complianceStatus === 'APPROVED' || property.complianceStatus === 'REJECTED' || 
-                         (property.complianceStatus === 'PENDING' && property.interviewCompleted) ? '✓' : '2'}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Compliance Review</p>
-                        <p className="text-xs text-gray-500">24-hour review period</p>
-                      </div>
-                      {documents && documents.filter(doc => 
-                        ['COMPLIANCE_DECLARATION', 'ENERGY_CERTIFICATE', 'MUNICIPAL_LICENSE', 
-                         'PREDIAL_REGISTRATION', 'CADERNETA_PREDIAL_URBANA'].includes(doc.type)
-                      ).length >= 5 && property.complianceStatus === 'PENDING' && !property.interviewCompleted && (
-                        <Badge variant="outline" className="text-blue-600">In Progress</Badge>
-                      )}
-                    </div>
+                    {/* HIDDEN: Step 2 & 3 - Compliance Review & Interview (still happen in backend) */}
 
-                    {/* Step 3 - Interview */}
+                    {/* Step 2 (was Step 4) */}
                     <div className="flex items-start space-x-3">
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                        property.complianceStatus === 'APPROVED' || 
-                        (property.complianceStatus === 'PENDING' && property.interviewCompleted) ? 
-                        'bg-green-500 text-white' : 
-                        property.complianceStatus === 'PENDING' && documents && documents.filter(doc => 
-                          ['COMPLIANCE_DECLARATION', 'ENERGY_CERTIFICATE', 'MUNICIPAL_LICENSE', 
-                           'PREDIAL_REGISTRATION', 'CADERNETA_PREDIAL_URBANA'].includes(doc.type)
-                        ).length >= 5 ? 'bg-amber-500 text-white' : 'bg-gray-300 text-gray-600'
-                      }`}>
-                        {property.complianceStatus === 'APPROVED' || 
-                         (property.complianceStatus === 'PENDING' && property.interviewCompleted) ? '✓' : '3'}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Interview</p>
-                        <p className="text-xs text-gray-500">Video call with compliance team</p>
-                      </div>
-                      {property.complianceStatus === 'PENDING' && !property.interviewCompleted && 
-                       documents && documents.filter(doc => 
-                        ['COMPLIANCE_DECLARATION', 'ENERGY_CERTIFICATE', 'MUNICIPAL_LICENSE', 
-                         'PREDIAL_REGISTRATION', 'CADERNETA_PREDIAL_URBANA'].includes(doc.type)
-                      ).length >= 5 && (
-                        <Badge variant="outline" className="text-amber-600">Pending</Badge>
-                      )}
-                    </div>
-
-                    {/* Step 4 */}
-                    <div className="flex items-start space-x-3">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                        property.complianceStatus === 'APPROVED' ? 
+                        property.complianceStatus === 'APPROVED' ?
                         'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'
                       }`}>
-                        {property.complianceStatus === 'APPROVED' ? '✓' : '4'}
+                        {property.complianceStatus === 'APPROVED' ? '✓' : '2'}
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium">Property Approved</p>
@@ -970,7 +922,7 @@ export default function PropertyManagementPage() {
                         <Badge variant="outline" className="text-green-600">Complete</Badge>
                       )}
                     </div>
-                    {/* Step 5 - KYC Level 2 for Visibility */}
+                    {/* Step 3 (was Step 5) - KYC Level 2 for Offers */}
                     <div className="flex items-start space-x-3">
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                         property.isVisible ?
@@ -978,11 +930,11 @@ export default function PropertyManagementPage() {
                         property.complianceStatus === 'APPROVED' ?
                         'bg-orange-500 text-white' : 'bg-gray-300 text-gray-600'
                       }`}>
-                        {property.isVisible ? '✓' : '5'}
+                        {property.isVisible ? '✓' : '3'}
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium">Complete KYC Level 2</p>
-                        <p className="text-xs text-gray-500">Required to make property visible to buyers</p>
+                        <p className="text-xs text-gray-500">Required to receive offers (property is visible with Tier 1)</p>
                       </div>
                       {property.complianceStatus === 'APPROVED' && !property.isVisible && (
                         <Button size="sm" variant="outline" className="border-orange-500 text-orange-600"

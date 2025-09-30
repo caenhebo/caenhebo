@@ -267,7 +267,7 @@ export default function PropertiesPage() {
                   {property.requiresKyc2 && (
                     <Alert className="mt-4 border-orange-200 bg-orange-50">
                       <AlertDescription className="text-xs text-orange-800">
-                        Complete KYC Level 2 to make this property visible to buyers
+                        Complete KYC Level 2 to receive offers on this property (currently visible to buyers)
                       </AlertDescription>
                     </Alert>
                   )}

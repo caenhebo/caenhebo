@@ -182,11 +182,16 @@ export default function PromissoryAgreement({
         setSuccess(`🎉 Both parties have signed the ${documentType}! Moving to the next stage...`)
         setTransitioning(true)
 
-        // Trigger completion callback with shorter delay
-        if (onComplete) {
+        // If auto-advanced, reload immediately
+        if (data.autoAdvanced && data.newStatus) {
+          setTimeout(() => {
+            window.location.reload()
+          }, 500)
+        } else if (onComplete) {
+          // Trigger completion callback with shorter delay
           setTimeout(() => {
             onComplete()
-          }, 500) // Reduced from 2000ms to 500ms
+          }, 500)
         }
       } else {
         setSuccess('✅ You have successfully signed! Waiting for the other party to sign...')
@@ -221,9 +226,17 @@ export default function PromissoryAgreement({
               <span className="text-green-800 font-medium">Agreement fully executed</span>
             </div>
             
-            <div className="flex justify-center">
-              <Button 
-                variant="outline" 
+            <div className="flex flex-col items-center gap-3">
+              <Button
+                size="lg"
+                className="bg-green-600 hover:bg-green-700 text-white px-8"
+                onClick={() => window.location.reload()}
+              >
+                Continue with the Process
+              </Button>
+
+              <Button
+                variant="outline"
                 onClick={handleDownloadAgreement}
               >
                 <Download className="mr-2 h-4 w-4" />

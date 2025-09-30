@@ -13,13 +13,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get user with KYC2 status
+    // Get user with KYC status
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
         id: true,
         role: true,
-        kyc2Status: true
+        kycStatus: true
       }
     })
 
@@ -30,10 +30,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if KYC2 is passed
-    if (user.kyc2Status !== 'PASSED') {
+    // Check if KYC Tier 1 is passed (lowered requirement)
+    if (user.kycStatus !== 'PASSED') {
       return NextResponse.json(
-        { error: 'KYC Level 2 verification must be completed first' },
+        { error: 'KYC Tier 1 verification must be completed first' },
         { status: 400 }
       )
     }

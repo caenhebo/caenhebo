@@ -8,7 +8,10 @@ declare module 'next-auth' {
       name: string
       role: string
       kycStatus: string
+      kyc2Status: string
+      mediationAgreementSigned: boolean
       strigaUserId?: string
+      paymentPreference?: string
     }
   }
 
@@ -18,7 +21,10 @@ declare module 'next-auth' {
     name: string
     role: string
     kycStatus: string
+    kyc2Status: string
+    mediationAgreementSigned: boolean
     strigaUserId?: string
+    paymentPreference?: string
   }
 }
 
@@ -26,6 +32,9 @@ declare module 'next-auth/jwt' {
   interface JWT {
     role: string
     kycStatus: string
+    kyc2Status: string
+    mediationAgreementSigned: boolean
     strigaUserId?: string
+    paymentPreference?: string
   }
 }

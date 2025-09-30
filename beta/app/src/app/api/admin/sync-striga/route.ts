@@ -69,7 +69,16 @@ export async function POST(request: NextRequest) {
                 phoneVerified: strigaUser.mobileVerified || false
               }
             })
-            
+
+            // Ensure wallets exist for any user with PASSED KYC
+            if (mappedStatus === 'PASSED') {
+              console.log(`[Admin Sync] Ensuring wallets for ${user.email}...`)
+              const walletResult = await ensureUserWallets(user.id)
+              if (walletResult.created.length > 0) {
+                console.log(`[Admin Sync] Created ${walletResult.created.length} wallets for ${user.email}`)
+              }
+            }
+
             results.push({
               email: user.email,
               success: true,
@@ -123,9 +132,9 @@ export async function POST(request: NextRequest) {
               }
             })
             
-            // If KYC was just approved, ensure wallets are created
-            if (mappedStatus === 'PASSED' && user.kycStatus !== 'PASSED') {
-              console.log(`[Admin Sync] KYC newly approved for ${user.email}, creating wallets...`)
+            // Ensure wallets exist for any user with PASSED KYC
+            if (mappedStatus === 'PASSED') {
+              console.log(`[Admin Sync] Ensuring wallets for ${user.email}...`)
               const walletResult = await ensureUserWallets(user.id)
               if (walletResult.created.length > 0) {
                 console.log(`[Admin Sync] Created ${walletResult.created.length} wallets for ${user.email}`)

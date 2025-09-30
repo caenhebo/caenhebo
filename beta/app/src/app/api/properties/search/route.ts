@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     // Build where clause for property search
     let whereClause: any = {
       complianceStatus: 'APPROVED', // Only show approved properties to buyers
-      isVisible: true // Only show properties that are visible (seller has KYC2)
+      isVisible: true // Only show properties that are visible (seller has at least KYC Tier 1)
     }
 
     // Search by property code (exact match)
@@ -87,6 +87,13 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
       take: 50, // Limit results to prevent large response
       include: {
+        seller: {
+          select: {
+            id: true,
+            kyc2Status: true,
+            mediationAgreementSigned: true
+          }
+        },
         _count: {
           select: {
             interests: true,
@@ -96,7 +103,11 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    const formattedProperties = properties.map(property => ({
+    // No additional filtering needed - property visibility is controlled by isVisible flag
+    // Sellers can make properties visible with KYC Tier 1
+    const verifiedProperties = properties
+
+    const formattedProperties = verifiedProperties.map(property => ({
       id: property.id,
       code: property.code,
       title: property.title,
@@ -125,7 +136,7 @@ export async function GET(request: NextRequest) {
         where: {
           buyerId: session.user.id,
           propertyId: {
-            in: properties.map(p => p.id)
+            in: verifiedProperties.map(p => p.id)
           }
         }
       })

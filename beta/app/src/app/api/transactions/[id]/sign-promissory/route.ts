@@ -114,18 +114,45 @@ export async function POST(
         }
       })
 
-      // TODO: Send notification emails to both parties
+      // Auto-advance to FUND_PROTECTION and initialize steps
+      await prisma.transaction.update({
+        where: { id: transactionId },
+        data: { status: 'FUND_PROTECTION' }
+      })
+
+      await prisma.transactionStatusHistory.create({
+        data: {
+          transactionId: transactionId,
+          fromStatus: 'AGREEMENT',
+          toStatus: 'FUND_PROTECTION',
+          changedBy: session.user.id,
+          notes: 'Auto-advanced to Fund Protection after both signatures'
+        }
+      })
+
+      // DO NOT auto-initialize fund protection steps
+      // Buyer must choose currency first via the UI
     }
 
-    const buyerSigned = updatedTransaction.buyerSignedPromissory || false
-    const sellerSigned = updatedTransaction.sellerSignedPromissory || false
+    // Get the latest transaction state after potential auto-advance
+    const finalTransaction = await prisma.transaction.findUnique({
+      where: { id: transactionId },
+      select: {
+        status: true,
+        buyerSignedPromissory: true,
+        sellerSignedPromissory: true,
+        purchaseAgreementSigned: true
+      }
+    })
 
     return NextResponse.json({
       success: true,
       message: 'Agreement signed successfully',
-      buyerSigned: buyerSigned,
-      sellerSigned: sellerSigned,
-      bothSigned: updatedTransaction?.purchaseAgreementSigned || false
+      buyerSigned: finalTransaction?.buyerSignedPromissory || false,
+      sellerSigned: finalTransaction?.sellerSignedPromissory || false,
+      bothSigned: finalTransaction?.purchaseAgreementSigned || false,
+      newStatus: finalTransaction?.status,
+      autoAdvanced: bothSigned
     })
 
   } catch (error) {

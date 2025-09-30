@@ -173,6 +173,17 @@ export async function POST(
       return updatedTransaction
     })
 
+    // For FIAT transactions, initialize fund protection steps after status change
+    if (nextStatus === 'FUND_PROTECTION' && transaction.paymentMethod === 'FIAT') {
+      const { initializeFiatFundProtection } = await import('@/lib/fund-protection')
+      try {
+        await initializeFiatFundProtection(transactionId)
+      } catch (error) {
+        console.error('Failed to initialize FIAT fund protection:', error)
+        // Don't fail the request, just log the error
+      }
+    }
+
     // TODO: Send notifications to both parties about status change
 
     return NextResponse.json({

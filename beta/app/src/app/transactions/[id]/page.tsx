@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import Header from '@/components/header'
 import DocumentManager from '@/components/documents/document-manager'
 import PromissoryAgreement from '@/components/transactions/promissory-agreement'
+import { FundProtectionBuyer } from '@/components/transactions/fund-protection-buyer'
+import { FundProtectionSeller } from '@/components/transactions/fund-protection-seller'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -718,42 +720,30 @@ export default function TransactionDetailPage({ params }: PageProps) {
               </Card>
             )}
 
-            {/* STAGE 4: FUND PROTECTION (formerly Escrow) */}
+            {/* STAGE 4: FUND PROTECTION - Show appropriate interface based on role */}
             {transaction.status === 'FUND_PROTECTION' && (
-              <Card className="border-4 border-green-500 shadow-2xl bg-gradient-to-b from-green-50 to-white">
-                <CardHeader className="bg-green-600 text-white">
-                  <CardTitle className="text-2xl flex items-center">
-                    <Shield className="mr-3 h-8 w-8" />
-                    Stage 4: Fund Protection
-                  </CardTitle>
-                  <p className="text-green-100 mt-2">
-                    Funds are now protected and the transaction is being processed
-                  </p>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <Alert>
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertDescription>
-                      Both parties have completed KYC Tier 2 verification. The funds are now under protection.
-                    </AlertDescription>
-                  </Alert>
+              <div>
+                <Card className="border-4 border-green-500 shadow-lg mb-6">
+                  <CardHeader className="bg-green-600 text-white">
+                    <CardTitle className="text-2xl flex items-center">
+                      <Shield className="mr-3 h-8 w-8" />
+                      Stage 4: Fund Protection
+                    </CardTitle>
+                    <p className="text-green-100 mt-2">
+                      {transaction.userRole === 'buyer'
+                        ? 'Complete the payment process to secure your purchase'
+                        : 'Receive and convert your payment'}
+                    </p>
+                  </CardHeader>
+                </Card>
 
-                  <div className="mt-6 space-y-4">
-                    <div className="p-4 rounded-lg border bg-card">
-                      <div className="text-sm font-medium mb-2">Protected Amount</div>
-                      <div className="text-2xl font-bold text-green-600">
-                        {formatPrice(transaction.agreedPrice || transaction.offerPrice)}
-                      </div>
-                    </div>
-
-                    {transaction.fundProtectionDate && (
-                      <div className="text-sm text-muted-foreground">
-                        Fund protection started on {formatDate(transaction.fundProtectionDate)}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                {/* Show buyer or seller interface based on role */}
+                {transaction.userRole === 'buyer' ? (
+                  <FundProtectionBuyer transactionId={transaction.id} />
+                ) : (
+                  <FundProtectionSeller transactionId={transaction.id} />
+                )}
+              </div>
             )}
 
             {/* Offer Details */}

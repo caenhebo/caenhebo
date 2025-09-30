@@ -16,7 +16,14 @@ export async function POST(request: NextRequest) {
 
     // Verify user is a buyer and KYC is approved
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id }
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        role: true,
+        kycStatus: true,
+        kyc2Status: true,
+        mediationAgreementSigned: true
+      }
     })
 
     if (!user) {
@@ -44,6 +51,14 @@ export async function POST(request: NextRequest) {
     if (user.kyc2Status !== 'PASSED') {
       return NextResponse.json(
         { error: 'KYC Tier 2 verification required to make offers. Please complete enhanced verification to proceed.' },
+        { status: 400 }
+      )
+    }
+
+    // Check mediation agreement requirement
+    if (!user.mediationAgreementSigned) {
+      return NextResponse.json(
+        { error: 'You must sign the mediation agreement before making offers. Please complete this requirement to proceed.' },
         { status: 400 }
       )
     }
@@ -100,7 +115,16 @@ export async function POST(request: NextRequest) {
 
     // Verify property exists and is approved
     const property = await prisma.property.findUnique({
-      where: { id: propertyId }
+      where: { id: propertyId },
+      include: {
+        seller: {
+          select: {
+            id: true,
+            kyc2Status: true,
+            mediationAgreementSigned: true
+          }
+        }
+      }
     })
 
     if (!property) {
@@ -117,8 +141,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check if seller has completed KYC Tier 2 to receive offers
+    if (property.seller.kyc2Status !== 'PASSED') {
+      return NextResponse.json(
+        { error: 'The property owner must complete KYC Tier 2 verification before accepting offers' },
+        { status: 400 }
+      )
+    }
+
+    if (!property.seller.mediationAgreementSigned) {
+      return NextResponse.json(
+        { error: 'The property owner has not signed the mediation agreement yet' },
+        { status: 400 }
+      )
+    }
+
     // Check if buyer is the seller (prevent self-offers)
-    if (property.sellerId === session.user.id) {
+    if (property.seller.id === session.user.id) {
       return NextResponse.json(
         { error: 'Cannot make an offer on your own property' },
         { status: 400 }
@@ -148,7 +187,7 @@ export async function POST(request: NextRequest) {
       data: {
         propertyId: propertyId,
         buyerId: session.user.id,
-        sellerId: property.sellerId,
+        sellerId: property.seller.id,
         status: 'OFFER',
         offerPrice: parseFloat(offerPrice),
         offerMessage: message || null,
@@ -201,7 +240,7 @@ export async function POST(request: NextRequest) {
     // Send notification to seller about new offer
     try {
       await notifyNewOffer(
-        property.sellerId,
+        property.seller.id,
         `${transaction.buyer.firstName} ${transaction.buyer.lastName}`,
         transaction.property.title,
         parseFloat(offerPrice),

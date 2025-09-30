@@ -312,9 +312,13 @@ export default function TransactionsPage() {
                             <div className="flex items-center">
                               <User className="w-4 h-4 mr-1" />
                               <span>
-                                {transaction.userRole === 'buyer' 
-                                  ? `Seller: ${transaction.seller.firstName} ${transaction.seller.lastName}`
-                                  : `Buyer: ${transaction.buyer.firstName} ${transaction.buyer.lastName}`
+                                {transaction.userRole === 'buyer'
+                                  ? (transaction.status === 'AGREEMENT' || transaction.status === 'COMPLETED'
+                                    ? `Seller: ${transaction.seller.firstName} ${transaction.seller.lastName}`
+                                    : 'Seller: Anonymous')
+                                  : (transaction.status === 'AGREEMENT' || transaction.status === 'COMPLETED'
+                                    ? `Buyer: ${transaction.buyer.firstName} ${transaction.buyer.lastName}`
+                                    : `Buyer #${transactions.filter(t => t.propertyId === transaction.propertyId && t.userRole === 'seller').indexOf(transaction) + 1}`)
                                 }
                               </span>
                             </div>

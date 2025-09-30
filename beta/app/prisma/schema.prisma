@@ -169,7 +169,7 @@ model Transaction {
   counterOffers             CounterOffer[]
   documents                 Document[]
   escrowDetails             EscrowDetails?
-  escrowSteps               EscrowStep[]
+  fundProtectionSteps       FundProtectionStep[]       @relation("FundProtectionSteps")
   payments                  Payment[]
   statusHistory             TransactionStatusHistory[]
   buyer                     User                       @relation("BuyerTransactions", fields: [buyerId], references: [id])
@@ -196,24 +196,27 @@ model Payment {
   @@map("payments")
 }
 
-model EscrowStep {
-  id            String        @id @default(cuid())
-  transactionId String
-  stepNumber    Int
-  description   String
-  status        PaymentStatus @default(PENDING)
-  amount        Decimal?
-  currency      String?
-  adminApproved Boolean       @default(false)
-  adminNotes    String?
-  approvedBy    String?
-  approvedAt    DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  transaction   Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+model FundProtectionStep {
+  id              String        @id @default(cuid())
+  transactionId   String
+  stepNumber      Int
+  stepType        String        // CRYPTO_DEPOSIT, CRYPTO_TRANSFER, CRYPTO_CONVERT, IBAN_TRANSFER, FIAT_UPLOAD, FIAT_CONFIRM
+  description     String
+  userType        String        // BUYER or SELLER - who needs to take action
+  status          PaymentStatus @default(PENDING)
+  amount          Decimal?
+  currency        String?       // BTC, ETH, USDT, BNB, EUR
+  fromWalletId    String?       // Striga wallet ID source
+  toWalletId      String?       // Striga wallet ID destination
+  txHash          String?       // Transaction hash for crypto transfers
+  proofUrl        String?       // Screenshot/proof for fiat payments
+  completedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  transaction     Transaction   @relation("FundProtectionSteps", fields: [transactionId], references: [id], onDelete: Cascade)
 
   @@unique([transactionId, stepNumber])
-  @@map("escrow_steps")
+  @@map("fund_protection_steps")
 }
 
 model Document {
