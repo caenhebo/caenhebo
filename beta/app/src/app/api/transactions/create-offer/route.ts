@@ -194,8 +194,8 @@ export async function POST(request: NextRequest) {
         offerTerms: terms || null,
         proposalDate: new Date(),
         paymentMethod: paymentMethod,
-        cryptoPercentage: paymentMethod === 'HYBRID' ? cryptoPercentage : null,
-        fiatPercentage: paymentMethod === 'HYBRID' ? fiatPercentage : null
+        cryptoPercentage: paymentMethod === 'CRYPTO' ? 100 : (paymentMethod === 'HYBRID' ? cryptoPercentage : 0),
+        fiatPercentage: paymentMethod === 'FIAT' ? 100 : (paymentMethod === 'HYBRID' ? fiatPercentage : 0)
       },
       include: {
         property: {

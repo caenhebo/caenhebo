@@ -109,77 +109,6 @@ export function FundProtectionBuyer({ transactionId }: FundProtectionBuyerProps)
     input.click()
   }
 
-  const handleTestDeposit = async () => {
-    try {
-      const response = await fetch(`/api/transactions/${transactionId}/fund-protection/test-deposit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Test deposit verification failed')
-      }
-
-      alert('Test deposit verified successfully! You can now proceed to full deposit.')
-      fetchStatus()
-    } catch (error: any) {
-      console.error('Test deposit error:', error)
-      alert(error.message || 'Failed to verify test deposit')
-    }
-  }
-
-  const handleConvertCrypto = async () => {
-    if (!confirm('Are you sure you want to convert your crypto to EUR? This action cannot be undone.')) {
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/transactions/${transactionId}/fund-protection/convert-crypto`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Conversion failed')
-      }
-
-      alert(`Conversion successful! You now have €${result.eurAmount} in your vIBAN.`)
-      fetchStatus()
-    } catch (error: any) {
-      console.error('Conversion error:', error)
-      alert(error.message || 'Failed to convert crypto')
-    }
-  }
-
-  const handleVibanTransfer = async () => {
-    if (!confirm('Are you sure you want to send EUR to the seller\'s vIBAN?')) {
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/transactions/${transactionId}/fund-protection/viban-transfer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Transfer failed')
-      }
-
-      alert(`Transfer successful! €${result.amount} sent to seller's vIBAN.`)
-      fetchStatus()
-    } catch (error: any) {
-      console.error('vIBAN transfer error:', error)
-      alert(error.message || 'Failed to transfer EUR')
-    }
-  }
-
   if (loading) {
     return <div className="text-center py-8">Loading fund protection status...</div>
   }
@@ -374,46 +303,15 @@ export function FundProtectionBuyer({ transactionId }: FundProtectionBuyerProps)
       }
     }
 
-    // Get payment method description
-    const getPaymentMethodDescription = () => {
-      if (status.paymentMethod === 'CRYPTO') {
-        return 'You will pay 100% using cryptocurrency'
-      } else if (status.paymentMethod === 'HYBRID') {
-        const cryptoPercent = status.transaction?.cryptoPercentage || 50
-        const fiatPercent = status.transaction?.fiatPercentage || 50
-        return `You will pay ${cryptoPercent}% in cryptocurrency and ${fiatPercent}% via bank transfer`
-      }
-      return 'Select your payment currency'
-    }
-
     return (
       <div className="space-y-6">
-        {/* Payment Method Indicator */}
-        <Alert className={`border-2 ${
-          status.paymentMethod === 'CRYPTO' ? 'bg-orange-50 border-orange-500' :
-          status.paymentMethod === 'HYBRID' ? 'bg-purple-50 border-purple-500' :
-          'bg-blue-50 border-blue-500'
-        }`}>
-          <Wallet className={`h-5 w-5 ${
-            status.paymentMethod === 'CRYPTO' ? 'text-orange-600' :
-            status.paymentMethod === 'HYBRID' ? 'text-purple-600' :
-            'text-blue-600'
-          }`} />
-          <AlertDescription className={
-            status.paymentMethod === 'CRYPTO' ? 'text-orange-900' :
-            status.paymentMethod === 'HYBRID' ? 'text-purple-900' :
-            'text-blue-900'
-          }>
-            <strong className="text-lg block mb-2">
-              {status.paymentMethod === 'CRYPTO' && '₿ CRYPTOCURRENCY PAYMENT'}
-              {status.paymentMethod === 'HYBRID' && '⚡ HYBRID PAYMENT (Crypto + Fiat)'}
-              {!status.paymentMethod && 'PAYMENT METHOD'}
-            </strong>
+        <Alert className="bg-blue-50 border-blue-500 border-2">
+          <Wallet className="h-5 w-5 text-blue-600" />
+          <AlertDescription className="text-blue-900">
+            <strong className="text-lg block mb-2">🔹 STEP 1: Choose Your Payment Currency</strong>
             <p className="text-sm">
-              <strong>{getPaymentMethodDescription()}</strong><br/>
-              {(status.paymentMethod === 'CRYPTO' || status.paymentMethod === 'HYBRID') &&
-                'First, select which cryptocurrency you want to use for your payment below.'
-              }
+              You need to pay <strong>50% in cryptocurrency and 50% via bank transfer</strong>.<br/>
+              First, select which cryptocurrency you want to use for your payment below.
             </p>
           </AlertDescription>
         </Alert>
@@ -476,72 +374,8 @@ export function FundProtectionBuyer({ transactionId }: FundProtectionBuyerProps)
   const buyerProgress = buyerSteps.length > 0 ? Math.round((buyerCompletedSteps.length / buyerSteps.length) * 100) : 0
   const allBuyerStepsDone = buyerCompletedSteps.length === buyerSteps.length
 
-  // Determine if we're in crypto phase or fiat phase for HYBRID
-  const cryptoSteps = buyerSteps.filter((s: any) =>
-    s.stepType.startsWith('CRYPTO_') || s.stepType === 'VIBAN_TRANSFER'
-  )
-  const fiatSteps = buyerSteps.filter((s: any) =>
-    s.stepType.startsWith('FIAT_')
-  )
-  const cryptoComplete = cryptoSteps.every((s: any) => s.status === 'COMPLETED')
-  const currentPhase = status.paymentMethod === 'HYBRID' && !cryptoComplete ? 'CRYPTO' :
-                      status.paymentMethod === 'HYBRID' && cryptoComplete && !allBuyerStepsDone ? 'FIAT' :
-                      status.paymentMethod
-
   return (
     <div className="space-y-6">
-      {/* Simulation Mode Banner */}
-      {status.simulationMode && (
-        <Alert className="border-4 border-yellow-500 bg-yellow-50 shadow-xl">
-          <AlertDescription>
-            <div className="flex items-center justify-between">
-              <div>
-                <strong className="text-2xl block mb-1 text-yellow-900">🎭 SIMULATION MODE ACTIVE</strong>
-                <p className="text-sm text-yellow-800">
-                  This is test mode - no real Striga API calls are being made. All transactions are simulated.
-                  <br/>
-                  <strong>To disable:</strong> Set ENABLE_SIMULATION_MODE=false in .env file
-                </p>
-              </div>
-              <Badge variant="outline" className="text-lg px-4 py-2 border-yellow-600 text-yellow-900">
-                TEST MODE
-              </Badge>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Payment Method Indicator */}
-      <Alert className={`border-4 shadow-lg ${
-        status.paymentMethod === 'CRYPTO' ? 'bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-500' :
-        status.paymentMethod === 'FIAT' ? 'bg-gradient-to-r from-blue-50 to-green-50 border-blue-500' :
-        status.paymentMethod === 'HYBRID' && currentPhase === 'CRYPTO' ? 'bg-gradient-to-r from-purple-50 to-orange-50 border-purple-500' :
-        status.paymentMethod === 'HYBRID' && currentPhase === 'FIAT' ? 'bg-gradient-to-r from-purple-50 to-blue-50 border-purple-500' :
-        'bg-blue-50 border-blue-500'
-      }`}>
-        <AlertDescription>
-          <div className="flex items-center justify-between">
-            <div>
-              <strong className="text-2xl block mb-1">
-                {status.paymentMethod === 'CRYPTO' && '₿ CRYPTOCURRENCY PAYMENT (100%)'}
-                {status.paymentMethod === 'FIAT' && '💳 BANK TRANSFER PAYMENT (100%)'}
-                {status.paymentMethod === 'HYBRID' && currentPhase === 'CRYPTO' && '⚡ HYBRID PAYMENT - Part 1: Cryptocurrency'}
-                {status.paymentMethod === 'HYBRID' && currentPhase === 'FIAT' && '⚡ HYBRID PAYMENT - Part 2: Bank Transfer'}
-              </strong>
-              <p className="text-sm text-gray-700">
-                {status.paymentMethod === 'CRYPTO' && 'You will complete all payment using cryptocurrency'}
-                {status.paymentMethod === 'FIAT' && 'You will complete all payment via bank transfer'}
-                {status.paymentMethod === 'HYBRID' && currentPhase === 'CRYPTO' && `First complete the crypto payment (${status.transaction?.cryptoPercentage || 50}%), then the bank transfer`}
-                {status.paymentMethod === 'HYBRID' && currentPhase === 'FIAT' && `Crypto part complete! Now complete the bank transfer (${status.transaction?.fiatPercentage || 50}%)`}
-              </p>
-            </div>
-            <Badge variant="outline" className="text-lg px-4 py-2">
-              {status.paymentMethod}
-            </Badge>
-          </div>
-        </AlertDescription>
-      </Alert>
-
       {/* Overall Process Explanation */}
       <Card className="border-2 border-blue-400 bg-gradient-to-r from-blue-50 to-white">
         <CardHeader>
@@ -550,10 +384,7 @@ export function FundProtectionBuyer({ transactionId }: FundProtectionBuyerProps)
             💰 Payment Process Overview
           </CardTitle>
           <CardDescription className="text-base mt-2">
-            {status.paymentMethod === 'CRYPTO' && 'Follow these steps to complete your cryptocurrency payment'}
-            {status.paymentMethod === 'FIAT' && 'Follow these steps to complete your bank transfer payment'}
-            {status.paymentMethod === 'HYBRID' && currentPhase === 'CRYPTO' && 'Part 1: Complete the cryptocurrency payment first'}
-            {status.paymentMethod === 'HYBRID' && currentPhase === 'FIAT' && 'Part 2: Complete the bank transfer payment'}
+            Here's what you need to do to complete this payment
           </CardDescription>
         </CardHeader>
         <CardContent>

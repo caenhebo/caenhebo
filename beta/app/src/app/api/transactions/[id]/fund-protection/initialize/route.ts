@@ -143,11 +143,27 @@ export async function POST(
 
     // Calculate EUR amounts
     const agreedPrice = parseFloat(transaction.agreedPrice?.toString() || '0')
-    const cryptoPercentage = transaction.cryptoPercentage || 0
-    const fiatPercentage = transaction.fiatPercentage || 0
 
-    const cryptoEurAmount = (agreedPrice * cryptoPercentage) / 100
-    const fiatEurAmount = (agreedPrice * fiatPercentage) / 100
+    // If percentages are not set, infer from payment method
+    let cryptoPercentage = transaction.cryptoPercentage
+    let fiatPercentage = transaction.fiatPercentage
+
+    if (cryptoPercentage === null || cryptoPercentage === undefined) {
+      if (transaction.paymentMethod === 'CRYPTO') {
+        cryptoPercentage = 100
+        fiatPercentage = 0
+      } else if (transaction.paymentMethod === 'FIAT') {
+        cryptoPercentage = 0
+        fiatPercentage = 100
+      } else if (transaction.paymentMethod === 'HYBRID') {
+        // Default 50/50 split for hybrid
+        cryptoPercentage = 50
+        fiatPercentage = 50
+      }
+    }
+
+    const cryptoEurAmount = (agreedPrice * (cryptoPercentage || 0)) / 100
+    const fiatEurAmount = (agreedPrice * (fiatPercentage || 0)) / 100
 
     // Fetch live exchange rates from Striga
     let cryptoAmount = cryptoEurAmount
@@ -182,14 +198,47 @@ export async function POST(
     const steps = []
     let stepNumber = 1
 
-    // CRYPTO FLOW
+    // CRYPTO FLOW - NEW SAFER PROCESS
     if (transaction.paymentMethod === 'CRYPTO' || transaction.paymentMethod === 'HYBRID') {
       if (cryptoEurAmount > 0) {
+        // Calculate test deposit amount (€100 worth of crypto)
+        const testDepositEur = 100
+        const testDepositCrypto = testDepositEur / exchangeRate
+
+        // BUYER STEPS
+        // Step 1: Test deposit €100 to verify wallet address works
+        steps.push({
+          transactionId,
+          stepNumber: stepNumber++,
+          stepType: 'CRYPTO_TEST_DEPOSIT',
+          description: `Test deposit: Send €${testDepositEur} (${testDepositCrypto.toFixed(8)} ${currency}) to your platform wallet`,
+          userType: 'BUYER',
+          status: 'PENDING',
+          amount: testDepositCrypto,
+          currency,
+          fromWalletId: buyerWallet.strigaWalletId
+        })
+
+        // Step 2: Full deposit remaining amount
+        const remainingAmount = cryptoAmount - testDepositCrypto
         steps.push({
           transactionId,
           stepNumber: stepNumber++,
           stepType: 'CRYPTO_DEPOSIT',
-          description: `Deposit ${cryptoAmount.toFixed(2)} ${currency} to your platform wallet`,
+          description: `Deposit remaining ${remainingAmount.toFixed(8)} ${currency} to your platform wallet`,
+          userType: 'BUYER',
+          status: 'PENDING',
+          amount: remainingAmount,
+          currency,
+          fromWalletId: buyerWallet.strigaWalletId
+        })
+
+        // Step 3: Convert crypto to EUR in buyer's vIBAN
+        steps.push({
+          transactionId,
+          stepNumber: stepNumber++,
+          stepType: 'CRYPTO_CONVERT_BUYER',
+          description: `Convert ${cryptoAmount.toFixed(8)} ${currency} to €${cryptoEurAmount.toFixed(2)} in your vIBAN`,
           userType: 'BUYER',
           status: 'PENDING',
           amount: cryptoAmount,
@@ -197,36 +246,25 @@ export async function POST(
           fromWalletId: buyerWallet.strigaWalletId
         })
 
+        // Step 4: Transfer EUR from buyer's vIBAN to seller's vIBAN
         steps.push({
           transactionId,
           stepNumber: stepNumber++,
-          stepType: 'CRYPTO_TRANSFER',
-          description: `Transfer ${cryptoAmount.toFixed(2)} ${currency} to seller`,
+          stepType: 'VIBAN_TRANSFER',
+          description: `Transfer €${cryptoEurAmount.toFixed(2)} from your vIBAN to seller's vIBAN`,
           userType: 'BUYER',
           status: 'PENDING',
-          amount: cryptoAmount,
-          currency,
-          fromWalletId: buyerWallet.strigaWalletId,
-          toWalletId: sellerWallet.strigaWalletId
+          amount: cryptoEurAmount,
+          currency: 'EUR'
         })
 
+        // SELLER STEPS
+        // Step 5: Transfer EUR from seller's vIBAN to personal bank account
         steps.push({
           transactionId,
           stepNumber: stepNumber++,
-          stepType: 'CRYPTO_CONVERT',
-          description: `Convert ${cryptoAmount.toFixed(2)} ${currency} to EUR`,
-          userType: 'SELLER',
-          status: 'PENDING',
-          amount: cryptoAmount,
-          currency,
-          fromWalletId: sellerWallet.strigaWalletId
-        })
-
-        steps.push({
-          transactionId,
-          stepNumber: stepNumber++,
-          stepType: 'IBAN_TRANSFER',
-          description: `Transfer €${cryptoEurAmount.toFixed(2)} to your bank`,
+          stepType: 'VIBAN_TO_BANK',
+          description: `Transfer €${cryptoEurAmount.toFixed(2)} from your vIBAN to your personal bank account`,
           userType: 'SELLER',
           status: 'PENDING',
           amount: cryptoEurAmount,

@@ -67,13 +67,19 @@ export async function GET(
       (currentStep.userType === 'SELLER' && isSeller)
     )
 
+    // Check if simulation mode is enabled
+    const simulationMode = process.env.ENABLE_SIMULATION_MODE === 'true'
+
     return NextResponse.json({
       transactionId,
       status: transaction.status,
       paymentMethod: transaction.paymentMethod,
+      simulationMode,
       transaction: {
         agreedPrice: transaction.agreedPrice?.toString() || transaction.offerPrice.toString(),
-        offerPrice: transaction.offerPrice.toString()
+        offerPrice: transaction.offerPrice.toString(),
+        cryptoPercentage: transaction.cryptoPercentage,
+        fiatPercentage: transaction.fiatPercentage
       },
       steps: transaction.fundProtectionSteps.map(step => ({
         id: step.id,

@@ -192,10 +192,59 @@ NEXTAUTH_URL="http://localhost:3019"
 NEXTAUTH_SECRET="your-secret-here"
 STRIGA_API_KEY="your-striga-key"
 STRIGA_API_SECRET="your-striga-secret"
+STRIGA_API_URL="https://www.sandbox.striga.com/api/v1"
 REDIS_URL="redis://localhost:6379"
 PORT=3019
 NODE_ENV=production
+
+# Simulation Mode (for testing without real Striga API calls)
+ENABLE_SIMULATION_MODE=true  # Set to 'false' to use real Striga API
 ```
+
+### 🎭 Simulation Mode
+
+**For testing the UI flow without making real Striga API calls:**
+
+The platform includes a simulation mode that allows you to test the complete payment flow without:
+- Real blockchain transactions
+- Real Striga API calls
+- Real crypto deposits
+- Real EUR conversions
+
+**To Enable Simulation Mode:**
+```bash
+# In .env file
+ENABLE_SIMULATION_MODE=true
+```
+
+**To Disable Simulation Mode (Use Real Striga API):**
+```bash
+# In .env file
+ENABLE_SIMULATION_MODE=false
+```
+
+**What Simulation Mode Does:**
+- ✅ Simulates wallet balances (BTC: 0.5, ETH: 10, USDC: 50k, etc.)
+- ✅ Simulates crypto to EUR conversion with realistic exchange rates
+- ✅ Simulates SEPA transfers between vIBANs
+- ✅ Shows a yellow "SIMULATION MODE ACTIVE" banner in the UI
+- ✅ All transactions complete instantly for UI testing
+
+**When Active:**
+- A prominent yellow banner appears at the top of payment pages
+- Console logs show `🎭 [SIMULATION]` prefix for simulated operations
+- All API responses include `simulationMode: true` field
+
+**To Remove Simulation Mode Completely (Production):**
+1. Set `ENABLE_SIMULATION_MODE=false` in .env
+2. (Optional) Delete `/src/lib/simulation.ts` file
+3. (Optional) Remove simulation imports from API routes
+
+**Note:** Simulation mode is perfect for:
+- Frontend development
+- UI/UX testing
+- Demo presentations
+- QA testing without testnet crypto
 
 ### Installation
 ```bash

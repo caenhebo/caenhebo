@@ -64,9 +64,13 @@ export function FundProtectionSeller({ transactionId }: FundProtectionSellerProp
   }
 
   const handleTransferToBank = async () => {
+    if (!confirm('Are you sure you want to transfer EUR from your vIBAN to your personal bank account?')) {
+      return
+    }
+
     setTransferring(true)
     try {
-      const response = await fetch(`/api/transactions/${transactionId}/fund-protection/bank-transfer`, {
+      const response = await fetch(`/api/transactions/${transactionId}/fund-protection/viban-to-bank`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -77,8 +81,8 @@ export function FundProtectionSeller({ transactionId }: FundProtectionSellerProp
         throw new Error(result.error || 'Transfer failed')
       }
 
-      alert('Transfer to your bank account completed successfully!')
-      if (result.allStepsComplete) {
+      alert(`Transfer successful! €${result.amount} sent to your bank account.`)
+      if (result.allStepsCompleted) {
         alert('All payment steps complete! Transaction moving to closing stage.')
       }
       fetchStatus()
@@ -233,8 +237,40 @@ export function FundProtectionSeller({ transactionId }: FundProtectionSellerProp
   const currentStep = status.currentStep
   const progress = status.progress
 
+  // Determine seller's role in payment process
+  const sellerSteps = status.steps.filter((s: any) => s.userType === 'SELLER')
+  const cryptoSteps = sellerSteps.filter((s: any) => s.stepType.startsWith('CRYPTO_') || s.stepType === 'VIBAN_TO_BANK')
+  const fiatSteps = sellerSteps.filter((s: any) => s.stepType.startsWith('FIAT_'))
+
   return (
     <div className="space-y-6">
+      {/* Payment Method Indicator */}
+      <Alert className={`border-4 shadow-lg ${
+        status.paymentMethod === 'CRYPTO' ? 'bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-500' :
+        status.paymentMethod === 'FIAT' ? 'bg-gradient-to-r from-blue-50 to-green-50 border-blue-500' :
+        'bg-gradient-to-r from-purple-50 to-green-50 border-purple-500'
+      }`}>
+        <AlertDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <strong className="text-2xl block mb-1">
+                {status.paymentMethod === 'CRYPTO' && '₿ CRYPTO PAYMENT INCOMING'}
+                {status.paymentMethod === 'FIAT' && '💳 BANK TRANSFER INCOMING'}
+                {status.paymentMethod === 'HYBRID' && '⚡ HYBRID PAYMENT INCOMING'}
+              </strong>
+              <p className="text-sm text-gray-700">
+                {status.paymentMethod === 'CRYPTO' && 'Buyer is paying with cryptocurrency - you will receive EUR in your vIBAN, then transfer to your bank'}
+                {status.paymentMethod === 'FIAT' && 'Buyer is paying via bank transfer directly to your account'}
+                {status.paymentMethod === 'HYBRID' && 'Buyer is using both cryptocurrency and bank transfer - follow the steps as they appear'}
+              </p>
+            </div>
+            <Badge variant="outline" className="text-lg px-4 py-2">
+              {status.paymentMethod}
+            </Badge>
+          </div>
+        </AlertDescription>
+      </Alert>
+
       {/* Progress Overview */}
       <Card>
         <CardHeader>
