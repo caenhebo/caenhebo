@@ -24,12 +24,12 @@ export default function Footer() {
               Privacy Policy
             </Link>
             <span className="text-gray-300">|</span>
-            <a 
-              href="mailto:support@caenhebo.com" 
+            <Link
+              href="/support"
               className="text-gray-600 hover:text-gray-900 transition-colors"
             >
               Support
-            </a>
+            </Link>
             <span className="text-gray-300">|</span>
             <a 
               href="mailto:privacy@caenhebo.com" 
